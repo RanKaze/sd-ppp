@@ -1,30 +1,6 @@
-# SD-PPP: Unofficial Photoshop AI Plugin
+1.添加了对Lora Manager的支持.(如果优化完了会考虑合并进入sd-ppp)
+2.添加了Rgthree的替代流程..(通过构造依赖树完成各种toggle,branch的传递.)
 
-[![](https://dcbadge.limes.pink/api/server/https://discord.gg/9HeGjDvEmn?style=flat)](https://discord.gg/9HeGjDvEmn) | [![微信群](https://img.shields.io/badge/CHN-%E5%BE%AE%E4%BF%A1%E7%BE%A4-brightgreen.svg)](https://sdppp.zombee.tech/zh/discuss/) 
-
-![GitHub Repo stars](https://img.shields.io/github/stars/zombieyang/sd-ppp) 
-<!-- | [![Kofi](https://img.shields.io/badge/Kofi-F16061.svg?logo=ko-fi&logoColor=white)](https://ko-fi.com/zombieyang) -->
-
-**Latest: Support Nano-banana, Flux-Kontext-Pro/Max, Midjourney or any API via RunningHUB in Photoshop!**
-
-**Latest: Support Nano-banana, Flux-Kontext-Pro/Max, Midjourney or any API via RunningHUB in Photoshop!**
-
-**Latest: Support Nano-banana, Flux-Kontext-Pro/Max, Midjourney or any API via RunningHUB in Photoshop!**
-
-<img width="400" alt="Image" src="./static/index.gif" />
-
-
-## 2.0 Beta is available!
-
-* Support any models and AIApps from `replicate.com` and `www.runninghub.ai`
-* No custom nodes needed when using ComfyUI
-* New UI, especially for sending images and receiving images.
-* Select images with keyboard shortcuts
-* Select any area, layer, document in Photoshop quickly!
-
-[> Download 2.0 Beta](https://sdppp.zombee.tech/)
-
-> only available for PS26.0+ (Adobe Photoshop 2025)
 
 ## How to use?
 
