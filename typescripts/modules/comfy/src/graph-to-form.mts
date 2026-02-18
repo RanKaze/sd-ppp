@@ -1,31 +1,120 @@
 import { pageStore } from "photoshopModels.mjs";
 import i18n from "../../../src/common/i18n.mts";
 import { sdpppX } from "../../../src/common/sdpppX.mts";
-import { WidgetTableStructure, WidgetTableStructureNode, WidgetTableValue } from "../../../src/types/sdppp";
-import { app } from "./comfy-globals.mts";
+import { WidgetTableStructure, WidgetTableStructureBlock, WidgetTableStructureNode, WidgetTableValue } from "../../../src/types/sdppp";
+import { app, graphIterateAllNodes, graphIterateAllGroups, graphFindNodeById } from "./comfy-globals.mts";
 
 // Define a type for the converter function
 type NodeConverter = (node: any) => WidgetTableStructureNode | null;
 type WidgetValueSetter = (node: any, widgetIndex: any, value: any) => boolean;
+type Callback = (app : any) => void;
 
 const customNodeConvertersByWildcard: [string, {
+    onRefresh?: Callback | null,
+    asNormalNode?: boolean,
     formatter: NodeConverter,
     setter: WidgetValueSetter | null
 }][] = [];
 
+const RefreshEvent : Callback[] = [];
+
+
 sdpppX.widgetable = sdpppX.widgetable || {};
 sdpppX.widgetable.add = function (name: string, fn: NodeConverter | {
+    onRefresh?: Callback,
+    asNormalNode?: boolean,
     formatter: NodeConverter,
     setter: WidgetValueSetter
 }) {
     if (typeof fn === 'function') {
         customNodeConvertersByWildcard.push([name, {
+            onRefresh: null,
+            asNormalNode: false,
             formatter: fn,
             setter: null
         }]);
     } else {
-        customNodeConvertersByWildcard.push([name, fn]);
+        if(fn.onRefresh){
+            RefreshEvent.push(fn.onRefresh);
+        }else{
+            customNodeConvertersByWildcard.push([name, fn]);
+        }
     }
+}
+
+function refresh(app : any){
+    RefreshEvent.forEach(fn => fn(app));
+}
+
+
+function* getBlockWidgets(graph: any, id : number) : Generator<any> {
+    const node = graphFindNodeById(graph, id);
+    const converter = customNodeConvertersByWildcard.find(([wildcard]) => {
+        return wildcardMatch(wildcard, node.type);
+    });
+
+    if (converter) {
+        try {
+            const converted = converter[1].formatter(node);
+            if (converted) {
+                const widgets = converted.widgets;
+                widgets.forEach((widget: any, index : number) => {
+                    widget.overrideId = id;
+                    widget.overrideWidgetIndex = index;
+                })
+                yield* widgets;
+                if(converted.blocks){
+                    for(let block of converted.blocks){
+                        yield* getBlockWidgets(graph, block.id);
+                    }
+                }
+                return;
+            }
+        } catch (e: any) {}
+    }
+
+    // generic node 
+    //only use the nodes starts with #
+    //if (!title.startsWith("#")) {
+    //    return null;
+    //}
+
+    
+    const defaultConverter = customNodeConvertersByWildcard.find(([wildcard]) => {
+        return wildcard == '__DEFAULT__'
+    })
+    if (defaultConverter) {
+        const converted = defaultConverter[1].formatter(node);
+        if (converted) {
+            const widgets = converted.widgets;
+            widgets.forEach((widget: any, index : number) => {
+                widget.name = widgets.length == 1 ? node.title : widget.name;
+                widget.overrideId = id;
+                widget.overrideWidgetIndex = index;
+            })
+            yield* widgets;
+            // 其实一般不会调用...但是留着吧..万一呢?
+            if(converted.blocks){
+                for(let block of converted.blocks){
+                    yield* getBlockWidgets(graph, block.id);
+                }
+            }
+            return;
+        }
+    }
+
+    let widgets = node.widgets;
+    widgets = widgets.map((widget: any) => ({
+        name: widget.label || widget.name,
+        outputType: widget.type || "string",
+        value: widget.value,
+        options: widget.options
+    }));
+    widgets.forEach((widget: any, index : number) => {
+        widget.overrideId = id;
+        widget.overrideWidgetIndex = index;
+    })
+    yield* widgets;
 }
 
 
@@ -51,14 +140,16 @@ export function setWidgetValue(node: any, widgetIndex: any, value: any) {
     workflowManager.activeWorkflow?.changeTracker.checkState()
 }
 
+
+
+// 将整个Graph中所有节点的Widget写入
 export function getWidgetTableValue(graph: any): WidgetTableValue {
     const ret: WidgetTableValue = {};
     const defaultConverter = customNodeConvertersByWildcard.find(([wildcard]) => {
         return wildcard == '__DEFAULT__'
     })
 
-    graph
-        .nodes
+    Array.from(graphIterateAllNodes(graph))
         .forEach((node: any) => {
             if (!node.widgets || node.widgets.length == 0) return; // no widgets
             const converter = customNodeConvertersByWildcard.find(([wildcard]) => {
@@ -68,7 +159,15 @@ export function getWidgetTableValue(graph: any): WidgetTableValue {
                 try {
                     const converted = converter[1].formatter(node);
                     if (converted) {
-                        ret[node.id] = converted.widgets.map((widget: any) => widget.value);
+                        let allValues = converted.widgets.map((widget: any) => widget.value);
+                        if(converted.blocks){
+                            for(let block of converted.blocks){
+                                for(let widget of getBlockWidgets(graph, block.id)){
+                                    allValues.push(widget.value);
+                                }
+                            }
+                        }
+                        ret[node.id] = allValues;
                     }
                 } catch (e: any) {
                     ret[node.id] = [];
@@ -77,6 +176,8 @@ export function getWidgetTableValue(graph: any): WidgetTableValue {
         });
     return ret;
 }
+
+
 
 export function makeWidgetTableStructure(graph: any, activeWorkflow: any): WidgetTableStructure {
     if (!graph) return {
@@ -90,8 +191,8 @@ export function makeWidgetTableStructure(graph: any, activeWorkflow: any): Widge
             useSliderForNumberWidget: pageStore.data.useSliderForNumberWidget
         }
     };
-    const groups: WidgetTableStructure['groups'] = graph
-        .groups
+    refresh(app);
+    const groups: WidgetTableStructure['groups'] = graph.groups
         .map((group: any) => {
             group.recomputeInsideNodes();
             return {
@@ -103,8 +204,9 @@ export function makeWidgetTableStructure(graph: any, activeWorkflow: any): Widge
                 })
             }
         });
-    const nodes: WidgetTableStructureNode[] = graph
-        .nodes
+    
+    const allNodes : any = Array.from(graphIterateAllNodes(graph));
+    const nodes: WidgetTableStructureNode[] = allNodes
         .map((node: any) => {
             if (node.mode != 0) return; // muted or by passed
             const title = getTitle(node);
@@ -114,23 +216,32 @@ export function makeWidgetTableStructure(graph: any, activeWorkflow: any): Widge
             const converter = customNodeConvertersByWildcard.find(([wildcard]) => {
                 return wildcardMatch(wildcard, node.type);
             });
+            
             if (converter) {
-                try {
-                    const converted = converter[1].formatter(node);
-                    if (converted) {
-                        converted.id = node.id;
-                        converted.uiWeightSum = converted.widgets.reduce((sum: number, widget: any) => sum + (widget.uiWeight || 12), 0);
-                        return converted;
-                    }
-                } catch (e: any) {
-                    return {
-                        id: node.id,
-                        title: title,
-                        uiWeightSum: 12,
-                        widgets: [{
-                            outputType: 'error',
-                            value: i18n('convert widget {0} failed:', converter[0]) + (e.message || e || '') + (e?.stack || '')
-                        }]
+                if (converter[1].asNormalNode === undefined || !converter[1].asNormalNode){
+                    try {
+                        const converted = converter[1].formatter(node);
+                        if (converted) {
+                            converted.id = node.id;
+                            let allWidgets = converted.widgets;
+                            if(converted.blocks){
+                                for(let block of converted.blocks){
+                                    allWidgets.push(...getBlockWidgets(graph, block.id));
+                                }
+                            }
+                            converted.uiWeightSum = allWidgets.reduce((sum: number, widget: any) => sum + (widget.uiWeight || 12), 0);
+                            return converted;
+                        }
+                    } catch (e: any) {
+                        return {
+                            id: node.id,
+                            title: title,
+                            uiWeightSum: 12,
+                            widgets: [{
+                                outputType: 'error',
+                                value: i18n('convert widget {0} failed:', converter[0]) + (e.message || e || '') + (e?.stack || '')
+                            }]
+                        }
                     }
                 }
             }
@@ -221,3 +332,7 @@ function getTitle(node: any, defaultTitle: string = '') {
     return retTitle;
 }
 sdpppX.getNodeTitle = getTitle;
+
+export {
+    refresh
+}

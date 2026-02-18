@@ -8,10 +8,20 @@ export interface WidgetTableStructureNode {
         name?: string;
         outputType: string;
         options?: any;
-
+        overrideId?: number;
         uiWeight?: number;
+        overrideId?: number;
+        overrideWidgetIndex?: number;
     }[];
+    blocks?: WidgetTableStructureBlock[];
     uiWeightSum: number
+}
+export interface WidgetTableStructureBlock {
+    id: number;
+    widgetModifiers?: {
+        overrideName?: string;
+        overrideWeight?: number;
+    }[];
 }
 export interface WidgetTableStructureGroup {
     id: number;

@@ -149,7 +149,7 @@ export function WorkflowCalleeSocket(SocketClass: SocketConstructor<Socket>) {
         }
         private setWidgetValue(params: WorkflowCalleeActions['setWidgetValue']['params']) {
             params.values.forEach(({ nodeID, widgetIndex, value }) => {
-                const node = app.graph.nodes.find((n: any) => n.id == nodeID);
+                const node = app.graph.getNodeById(nodeID);
                 if (!node || value == node.widgets[widgetIndex].value) return;
                 setWidgetValue(node, widgetIndex, value)
             });
@@ -232,7 +232,7 @@ export function WorkflowCalleeSocket(SocketClass: SocketConstructor<Socket>) {
         }
         public setNodeTitle(params: WorkflowCalleeActions['setNodeTitle']['params']) {
             const { node_id, title } = params;
-            const node = app.graph.nodes.find((n: any) => n.id == node_id);
+            const node = app.graph.getNodeById(node_id);
             if (!node) throw new Error('Node not found');
             node.title = title;
             node.setProperty('sdppp_widgetable_title', title);

@@ -58,8 +58,8 @@ export const ImageWidget = ({ value, onValueChange, options, nodeID }: ImageWidg
                         cursor: 'pointer'
                     }}
                     onClick={(e) => {
-                        app.constructor.copyToClipspace(app.graph.nodes.find((node: any) => node.id === nodeID))
-                        app.constructor.clipspace_return_node = app.graph.nodes.find((node: any) => node.id === nodeID)
+                        app.constructor.copyToClipspace(app.graph.getNodeById(nodeID))
+                        app.constructor.clipspace_return_node = app.graph.getNodeById(nodeID)
                         app.constructor.open_maskeditor()
                     }}
                 />

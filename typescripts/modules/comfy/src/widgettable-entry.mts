@@ -1,6 +1,6 @@
 import { api, app } from "./comfy-globals.mts";
 import { pageStore } from "../photoshopModels.mts";
-import { makeWidgetTableStructure, getWidgetTableValue } from "./graph-to-form.mts";
+import { makeWidgetTableStructure, getWidgetTableValue, refresh } from "./graph-to-form.mts";
 import { WidgetTableStructure } from "../../../src/types/sdppp";
 
 
