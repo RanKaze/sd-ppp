@@ -46,6 +46,20 @@ function refresh(app : any){
     RefreshEvent.forEach(fn => fn(app));
 }
 
+function filterWidgets(widgets : any[], node : any) : any[] {
+    return widgets.filter((widget: any) => {
+        if (node.inputs && node.inputs.some((input: any) => {
+            if(input.label){
+                return input.label === widget.name && input.link;
+            }else{
+                return input.name === widget.name && input.link;
+            }
+        })) {
+            return false;
+        }
+        return true;
+    });
+}
 
 function* getBlockWidgets(graph: any, id : number) : Generator<any> {
     const node = graphFindNodeById(graph, id);
@@ -57,11 +71,12 @@ function* getBlockWidgets(graph: any, id : number) : Generator<any> {
         try {
             const converted = converter[1].formatter(node);
             if (converted) {
-                const widgets = converted.widgets;
+                let widgets = converted.widgets;
                 widgets.forEach((widget: any, index : number) => {
                     widget.overrideId = id;
                     widget.overrideWidgetIndex = index;
                 })
+                widgets = filterWidgets(widgets, node);
                 yield* widgets;
                 if(converted.blocks){
                     for(let block of converted.blocks){
@@ -86,12 +101,13 @@ function* getBlockWidgets(graph: any, id : number) : Generator<any> {
     if (defaultConverter) {
         const converted = defaultConverter[1].formatter(node);
         if (converted) {
-            const widgets = converted.widgets;
+            let widgets = converted.widgets;
             widgets.forEach((widget: any, index : number) => {
                 widget.name = widgets.length == 1 ? node.title : widget.name;
                 widget.overrideId = id;
                 widget.overrideWidgetIndex = index;
             })
+            widgets = filterWidgets(widgets, node);
             yield* widgets;
             // 其实一般不会调用...但是留着吧..万一呢?
             if(converted.blocks){
@@ -114,6 +130,7 @@ function* getBlockWidgets(graph: any, id : number) : Generator<any> {
         widget.overrideId = id;
         widget.overrideWidgetIndex = index;
     })
+    widgets = filterWidgets(widgets, node);
     yield* widgets;
 }
 
@@ -159,7 +176,7 @@ export function getWidgetTableValue(graph: any): WidgetTableValue {
                 try {
                     const converted = converter[1].formatter(node);
                     if (converted) {
-                        let allValues = converted.widgets.map((widget: any) => widget.value);
+                        let allValues = filterWidgets(converted.widgets, node).map((widget: any) => widget.value);
                         if(converted.blocks){
                             for(let block of converted.blocks){
                                 for(let widget of getBlockWidgets(graph, block.id)){
@@ -223,12 +240,13 @@ export function makeWidgetTableStructure(graph: any, activeWorkflow: any): Widge
                         const converted = converter[1].formatter(node);
                         if (converted) {
                             converted.id = node.id;
-                            let allWidgets = converted.widgets;
+                            let allWidgets = filterWidgets(converted.widgets, node);
                             if(converted.blocks){
                                 for(let block of converted.blocks){
                                     allWidgets.push(...getBlockWidgets(graph, block.id));
                                 }
                             }
+                            converted.widgets = allWidgets;
                             converted.uiWeightSum = allWidgets.reduce((sum: number, widget: any) => sum + (widget.uiWeight || 12), 0);
                             return converted;
                         }
