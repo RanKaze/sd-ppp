@@ -1,17 +1,22 @@
-# SD-PPP: Unofficial Photoshop AI Plugin
+## 增加的SD-PPP Features:
 
-[![](https://dcbadge.limes.pink/api/server/https://discord.gg/9HeGjDvEmn?style=flat)](https://discord.gg/9HeGjDvEmn) | [![微信群](https://img.shields.io/badge/CHN-%E5%BE%AE%E4%BF%A1%E7%BE%A4-brightgreen.svg)](https://sdppp.zombee.tech/zh/discuss/) 
+1.支持 (https://github.com/RanKaze/kolid-comfy) 中的SDPPPLayout节点.
 
-![GitHub Repo stars](https://img.shields.io/github/stars/zombieyang/sd-ppp) 
-<!-- | [![Kofi](https://img.shields.io/badge/Kofi-F16061.svg?logo=ko-fi&logoColor=white)](https://ko-fi.com/zombieyang) -->
+  (1).使用BranchBooleanNode和BranchToggleNode构造/管理流程.
 
-**Latest: Support Nano-banana, Flux-Kontext-Pro/Max, Midjourney or any API via RunningHUB in Photoshop!**
+  (2).relay_expression:构造依赖树维护BranchNodes的数值,可以让branchNode的数值依赖于其它branchNode,自动更新.
 
-**Latest: Support Nano-banana, Flux-Kontext-Pro/Max, Midjourney or any API via RunningHUB in Photoshop!**
+  (3).expand_nodes:BranchNode被启用时,会在该branchNode的下方显示对应的节点
 
-**Latest: Support Nano-banana, Flux-Kontext-Pro/Max, Midjourney or any API via RunningHUB in Photoshop!**
+  (4).active_nodes:BranchNode被启用时,对应的节点会取消静音,反之启用.
 
-<img width="400" alt="Image" src="./static/index.gif" />
+  (5).foldout_nodes:BranchNode被启用时,对应的节点会被展开,反之缩起(这是一个很鸡肋的特性,但是我挺喜欢的)
+
+  (6).hide(海参):该BranchNode不会显示在SDPPPLayout中.
+
+2.支持blocks显示,允许在sdppp-custom.js中,在一个节点的显示下使用blocks来显示额外的节点.(expand_nodes正是如此实现的.)
+
+3.在sdppp-custom.js中提供了onRefresh事件的注册方法.可以缓存一些全局的变量.
 
 
 ## 2.0 Beta is available!
@@ -40,6 +45,7 @@ GPL-3.0
 @[AbdullahAlfaraj](https://github.com/AbdullahAlfaraj)
 @[tianlang0704](https://github.com/tianlang0704)
 @[猫咪老师](https://www.xiaohongshu.com/user/profile/59f1fcc411be101aba7f048f)
+
 
 
 
