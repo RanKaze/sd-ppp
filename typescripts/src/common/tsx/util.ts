@@ -1,6 +1,12 @@
 import { useEffect, useRef } from "react";
 
 export function computeUIWeightCSS(uiWeight: number | undefined) {
+    if (uiWeight === 0) {
+        return {
+            flex: '0 0 auto',
+            width: 'auto'
+        }
+    }
     uiWeight = uiWeight || 12;
     return { 
         flex: `${uiWeight} 0 calc(${uiWeight / 12 * 100}% - 10px)`,

@@ -4,6 +4,7 @@ import { setWidgetValue } from "../../graph-to-form.mjs";
 import { NumberWidget } from "./widgets/number";
 import { ComboWidget } from "./widgets/combo";
 import { ToggleWidget } from "./widgets/toggle";
+import { TextToggleWidget } from "./widgets/text_toggle";
 import { StringWidget } from "./widgets/string";
 import i18n from "../../../../../src/common/i18n.mts";
 import { ConfigProvider, Input } from "antd";
@@ -247,6 +248,21 @@ export class WorkflowEditWrap extends React.Component<{
                             uiWeight={widget.uiWeight || 12}
                             key={widgetIndex}
                             name={widget.name}
+                            value={this.state.widgetTableValue[valueId][valueIndex]}
+                            onValueChange={(v) => {
+                                editProps.onWidgetChange(valueId, valueIndex, v, fieldInfo);
+                            }}
+                            extraOptions={this.state.widgetTableStructure.extraOptions}
+                        />
+                    )
+                    return true
+
+                } else if (widget.outputType === 'text_toggle') {
+                    context.result.push(
+                        <TextToggleWidget
+                            uiWeight={widget.uiWeight ?? 12}
+                            key={widgetIndex}
+                            text={widget.name}
                             value={this.state.widgetTableValue[valueId][valueIndex]}
                             onValueChange={(v) => {
                                 editProps.onWidgetChange(valueId, valueIndex, v, fieldInfo);

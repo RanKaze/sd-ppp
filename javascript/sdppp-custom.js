@@ -1015,8 +1015,8 @@ export default function (sdppp, version = 1) {
                 widgets.push({
                     value: wigetValue.active,
                     name: wigetValue.text,
-                    outputType: "toggle",
-                    uiWeight: 12
+                    outputType: "text_toggle",
+                    uiWeight: 0
                 });
             }
 
@@ -1067,7 +1067,7 @@ export default function (sdppp, version = 1) {
                 widgets.push({
                     value: lora.active,
                     name: lora.name,
-                    outputType: "toggle",
+                    outputType: "text_toggle",
                     uiWeight: 4
                 });
                 
