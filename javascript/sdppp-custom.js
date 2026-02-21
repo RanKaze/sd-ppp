@@ -61,14 +61,9 @@ function initNodeProperty(node, key, settings) {
 function extractVariables(expr) {
   // 匹配：字母、中文、数字、下划线、$，且必须以字母/中文/_/$ 开头
   const regex = /[^\(|\)&!]+/gu;
-  
   const matches = expr.match(regex) || [];
-  
-  // 去重 + 过滤掉数字常量
-  const variables = [...new Set(matches)].filter(v => 
-    isNaN(Number(v)) && v !== 'true' && v !== 'false'
-  );
-  
+  // 去重
+  const variables = [...new Set(matches)];
   return variables;
 }
 
@@ -120,9 +115,12 @@ function initUpdateSet(node, updateSet) {
 
     updateSet.add(node);
     // 下游节点列表.
-    let beRelayeds = window.sdppp_data.branchBeRelayedMap.get(node.title);
-    // 如果没有下游节点,则返回.
-    if(!beRelayeds) return;
+    let beRelayeds = window.sdppp_data.branchBeRelayedMap.get("{"+node.id+"}");
+    if(!beRelayeds) {
+        beRelayeds = window.sdppp_data.branchBeRelayedMap.get(node.title);
+        // 如果没有下游节点,则返回.
+        if(!beRelayeds) return;
+    }
 
     for (let index = 0; index < beRelayeds.length; index++) {
         const beRelayed = beRelayeds[index];
@@ -132,20 +130,29 @@ function initUpdateSet(node, updateSet) {
 
 function updateRelays(node, updateSet) {
     // 下游节点列表.
-    let beRelayeds = window.sdppp_data.branchBeRelayedMap.get(node.title);
-    // 如果没有下游节点,则返回.
-    if(!beRelayeds) return;
+    let beRelayeds = window.sdppp_data.branchBeRelayedMap.get("{"+node.id+"}");
+    if(!beRelayeds) {
+        beRelayeds = window.sdppp_data.branchBeRelayedMap.get(node.title);
+        // 如果没有下游节点,则返回.
+        if(!beRelayeds) return;
+    }
     
     // 那些没被更新的会在那些节点的更新中顺带着更新.
     for (let index = 0; index < beRelayeds.length; index++) {
         const beRelayed = beRelayeds[index];
         // 找到所有上游节点不存在updateSet中的节点.
-        const relayTitles = window.sdppp_data.branchRelayMap.get(beRelayed);
+        const relayMarks = window.sdppp_data.branchRelayMap.get(beRelayed);
         let flag = true;
 
-        for (let j = 0; j < relayTitles.length; j++) {
-            const relayTitle = relayTitles[j];
-            const relayNode = window.sdppp_data.branchTitleMap.get(relayTitle);
+        for (let j = 0; j < relayMarks.length; j++) {
+            const relayMark = relayMarks[j];
+            let id = nodeMarkToId(relayMark);
+            let relayNode = null;
+            if (id !== undefined){
+                relayNode = node.graph.getNodeById(id);
+            }else{
+                relayNode = window.sdppp_data.branchTitleMap.get(relayMark);
+            }
             if(updateSet.has(relayNode)){
                 flag = false;
                 break;
@@ -160,10 +167,16 @@ function updateRelays(node, updateSet) {
             updateSet.delete(beRelayed);
 
             let parameters = new Map();
-            for (let j = 0; j < relayTitles.length; j++) {
-                const relayTitle = relayTitles[j];
-                const relayNode = window.sdppp_data.branchTitleMap.get(relayTitle);
-                parameters.set(relayTitle, relayNode.widgets[0].value)
+            for (let j = 0; j < relayMarks.length; j++) {
+                const relayMark = relayMarks[j];
+                let id = nodeMarkToId(relayMark);
+                if (id !== undefined){
+                    const relayNode = node.graph.getNodeById(id);
+                    parameters.set(relayMark, relayNode.widgets[0].value)
+                }else{
+                    const relayNode = window.sdppp_data.branchTitleMap.get(relayMark);
+                    parameters.set(relayMark, relayNode.widgets[0].value)
+                }
             }
 
             beRelayed.widgets[0].value = solveExpression(beRelayed.properties.relay_expression, parameters);
@@ -187,26 +200,16 @@ function updateActiveAndFoldout(){
         // 初始化activeNodes
         let activeNodes = branchNode.properties.active_nodes;
         if(activeNodes){
-            let nodeTitles = getNodeTitles(activeNodes);
-            for(let nodeTitle of nodeTitles){
-                let activeNode = branchNode.graph.nodes.find(n => n.title === nodeTitle || n.type === nodeTitle);
-                if(activeNode){
-                    // 设置节点mode: true时为0，false时为2
-                    activeNode.mode = branchNode.widgets[0].value ? 0 : 2;
-                }
+            for(let activeNode of getNodes(branchNode, activeNodes)){
+                activeNode.mode = branchNode.widgets[0].value ? 0 : 2;
             }
         }
         // 初始化foldoutNodes
         let foldoutNodes = branchNode.properties.foldout_nodes;
         if(foldoutNodes){
-            let nodeTitles = getNodeTitles(foldoutNodes);
-            for(let nodeTitle of nodeTitles){
-                let foldoutNode = branchNode.graph.nodes.find(n => n.title === nodeTitle || n.type === nodeTitle);
-                if(foldoutNode){
-                    // 控制节点折叠状态
-                    if(foldoutNode.collapsed == branchNode.widgets[0].value) {
-                        foldoutNode.collapse();
-                    }
+            for(let foldoutNode of getNodes(branchNode, foldoutNodes)){
+                if(foldoutNode.collapsed == branchNode.widgets[0].value) {
+                    foldoutNode.collapse();
                 }
             }
         }
@@ -217,17 +220,53 @@ function getNodeTitles(nodeTitles) {
     return nodeTitles.split('/');
 }
 
-function* ExpandNode(currentNode, expandNode, processedNodes) {
+function nodeMarkToId(nodeMark){
+    const matches = nodeMark.match(/(?<=\{)\d+(?=\})/g);
+    if (matches){
+        //把match的第一个值转变为id:number
+        let id = Number(matches[0]);
+        return id;
+    }
+    return undefined;
+}
+
+function* getNodes(node, nodeString){
+    let nodeMarks = getNodeTitles(nodeString);
+    for(let nodeMark of nodeMarks){
+        let id = nodeMarkToId(nodeMark);
+        if(id !== undefined){
+            let subNode = node.graph.getNodeById(id);
+            if(subNode){
+                yield subNode;
+            }
+        }else{
+            let subNode = node.graph.nodes.find(n => n.title === nodeMark || n.type === nodeMark);
+            if(subNode){
+                yield subNode;
+            }
+        }
+    }
+}
+
+function* ExpandNode(currentNode, expandNode, processedNodes, indent) {
     // 检测循环调用：如果已经处理过这个节点，或者这个节点正在处理中，就跳过
     if(processedNodes.has(expandNode.id)) {
         return;
     }
     processedNodes.add(expandNode.id);
     
+    let addFlag = true;
+    let hide = false;
+    if('hide' in expandNode.properties && expandNode.properties.hide){
+        addFlag = false;
+        hide = true;
+    }
+    let added = false;
+
     let block = {
+        indent : indent,
         id: expandNode.id,
     };
-    yield block;
     
     // 如果展开的节点是BranchToggleNode或BranchBooleanNode，递归展开它的expand_nodes
     let value = layoutValue(expandNode);
@@ -235,21 +274,27 @@ function* ExpandNode(currentNode, expandNode, processedNodes) {
         if (value) {
             let expandNodes = expandNode.properties.expand_nodes;
             if(expandNodes){
-                let nodeTitles = getNodeTitles(expandNodes);
-                for(let nodeTitle of nodeTitles){
-                    let subExpandNode = expandNode.graph.nodes.find(n => n.title === nodeTitle || n.type === nodeTitle);
-                    if(subExpandNode){
-                        // 递归展开子节点，不应用主节点的过滤条件
-                        yield* ExpandNode(expandNode, subExpandNode, processedNodes);
-                    }
+                if(addFlag){
+                    added = true;
+                    block.indent = indent + 1;
+                    block.split = true;
+                    yield block;
+                }
+                let nextIndent = hide ? indent : indent + 1;
+                for(let subExpandNode of getNodes(expandNode, expandNodes)){
+                    yield* ExpandNode(expandNode, subExpandNode, processedNodes, nextIndent);
                 }
             }
         }
     }
+
+    if(addFlag && !added){
+        yield block;
+    }
 }
 
 function layoutValue(node){
-    if (node.type === "BranchToggleNode" || node.type === "BranchBooleanNode"){
+    if (node.type === "Branch Switch" || node.type === "Branch Boolean"){
         return node.widgets[0].value;
     }
     return undefined;
@@ -268,58 +313,26 @@ function* allNodes(graph){
 
 export default function (sdppp, version = 1) {
 
-    if (!('kolidSDPPP_LayoutDict' in window)) {
-        window.kolidSDPPP_LayoutDict = new Map();
-    }
-    if (!('kolidLoraManager_LayoutDict' in window)) {
-        window.kolidLoraManager_LayoutDict = new Map();
+    if (window.sdppp_data === undefined){
+        window.sdppp_data = {};
+        window.sdppp_data.LayoutDict = new Map();
+        window.sdppp_data.branchTitleMap = new Map();
+        window.sdppp_data.branchRelayMap = new Map();
+        window.sdppp_data.branchBeRelayedMap = new Map();
     }
 
     sdppp.widgetable.add("sdppp_layout_参数更新", {
         onRefresh: (app) => {
             const graph = app.graph;
 
-            if(window.sdppp_data === undefined){
-                window.sdppp_data = {};
-                window.sdppp_data.branchNodes = [];
-                window.sdppp_data.loraPackNodes = [];
-                window.sdppp_data.branchTitleMap = new Map();
-                window.sdppp_data.branchRelayMap = new Map();
-                window.sdppp_data.branchBeRelayedMap = new Map();
-            }else{
-                window.sdppp_data.branchNodes = [];
-                window.sdppp_data.loraPackNodes = [];
-                window.sdppp_data.branchTitleMap.clear();
-                window.sdppp_data.branchRelayMap.clear();
-                window.sdppp_data.branchBeRelayedMap.clear();
-            }
+            window.sdppp_data.branchNodes = [];
+            window.sdppp_data.branchTitleMap.clear();
+            window.sdppp_data.branchRelayMap.clear();
+            window.sdppp_data.branchBeRelayedMap.clear();
 
             for (let node of allNodes(graph)) {
-                if(node.type == "LoadLoraPackNode"){
+                if(node.type == "Branch Switch" || node.type == "Branch Boolean"){    
 
-                    if (!('show_strength' in node.properties)) {
-                        node.setProperty('show_strength', false);
-                    }
-                    if (!('sdppp_max' in node.properties)) {
-                        node.setProperty('sdppp_max', 1.0);
-                    }
-                    if (!('sdppp_min' in node.properties)) {
-                        node.setProperty('sdppp_min', 0.0);
-                    }
-                    if (!('sdppp_step' in node.properties)) {
-                        node.setProperty('sdppp_step', 0.01);
-                    }
-
-                    if (!('json_positive' in node.properties)) {
-                        node.setProperty('json_positive', '');
-                    }
-                    if (!('json_positive_toggles' in node.properties)) {
-                        node.setProperty('json_positive_toggles', '');
-                    }
-
-                    window.sdppp_data.loraPackNodes.push(node);
-                }else if(node.type == "BranchToggleNode" || node.type == "BranchBooleanNode"){    
-                    
                     if (!('relay_expression' in node.properties)) {
                         node.setProperty('relay_expression', '');
                     }
@@ -384,7 +397,6 @@ export default function (sdppp, version = 1) {
                 }
             }
 
-            window.sdppp_data.loraPackNodes.sort((n0,n1)=>n0.widgets[0].value.localeCompare(n1.widgets[0].value));
             // 对BranchToggleNode进行排序
             window.sdppp_data.branchNodes.sort((n0,n1)=>n0.title.localeCompare(n1.title));
         }
@@ -813,7 +825,7 @@ export default function (sdppp, version = 1) {
             title: getTitle(node),
             widgets: [{
                 value: node.widgets[0].value, // 主值widget
-                name: '',   // 参数名widget
+                name: node.title,
                 outputType: "number",
                 options: {
                     max: node.properties.sdppp_max,
@@ -842,7 +854,7 @@ export default function (sdppp, version = 1) {
             title: getTitle(node),
             widgets: [{
                 value: node.widgets[0].value, // 主值widget
-                name: '',   // 参数名widget
+                name: node.title,   // 参数名widget
                 outputType: "number",
                 options: {
                     max: node.properties.sdppp_max,
@@ -963,8 +975,8 @@ export default function (sdppp, version = 1) {
 
     sdppp.widgetable.add("TriggerWord Toggle (LoraManager)", {
         formatter: (node) => {
-            window.kolidLoraManager_LayoutDict.set(node, []);
-            let widgetRemappingArr = window.kolidLoraManager_LayoutDict.get(node);
+            window.sdppp_data.LayoutDict.set(node, []);
+            let widgetRemappingArr = window.sdppp_data.LayoutDict.get(node);
             const widgets = [];
 
             widgetRemappingArr.push({
@@ -1026,7 +1038,7 @@ export default function (sdppp, version = 1) {
             };
         },
         setter: (node, widgetIndex, value) => {
-            let widgetRemappingArr = window.kolidLoraManager_LayoutDict.get(node);
+            let widgetRemappingArr = window.sdppp_data.LayoutDict.get(node);
             let o = widgetRemappingArr[widgetIndex];
             let targetNode = o.node;
 
@@ -1035,7 +1047,7 @@ export default function (sdppp, version = 1) {
                     targetNode.widgets[o.index].value = value;
                     targetNode.widgets[o.index].callback?.(targetNode.widgets[o.index].value);
                 }else if(o.type == 1){
-                    const tag = targetNode.widgets[3].element.children[0].children[o.index];
+                    const tag = targetNode.widgets[3].element.children[o.index];
                     tag.click();
                     let widgetValues = targetNode.widgets[3].value;
                     widgetValues[o.index].active = value;
@@ -1053,8 +1065,8 @@ export default function (sdppp, version = 1) {
     sdppp.widgetable.add('Lora Loader (LoraManager)', {
         formatter: (node) => {
 
-            window.kolidLoraManager_LayoutDict.set(node, []);
-            let widgetRemappingArr = window.kolidLoraManager_LayoutDict.get(node);
+            window.sdppp_data.LayoutDict.set(node, []);
+            let widgetRemappingArr = window.sdppp_data.LayoutDict.get(node);
             
             const widgets = [];
             const lorasData = node.lorasWidget.value;
@@ -1095,7 +1107,7 @@ export default function (sdppp, version = 1) {
             };
         },
         setter: (node, widgetIndex, value) => {
-            let widgetRemappingArr = window.kolidLoraManager_LayoutDict.get(node);
+            let widgetRemappingArr = window.sdppp_data.LayoutDict.get(node);
             let o = widgetRemappingArr[widgetIndex];
             let targetNode = o.node;
 
@@ -1107,26 +1119,9 @@ export default function (sdppp, version = 1) {
                 const lorasData = parseLoraValue(widget.value);
 
                 if(o.type == 0){
-                    // 计算对应条目的 DOM 路径
                     const toggleElement = loraEntry.children[0].children[1];
                     toggleElement.click();
                     lorasData[index].active = value;
-
-                    let tempNodes = [];
-                    let triggerWordSlot = targetNode.outputs.find((output) => output.name == "trigger_words");
-                    for(let i = 0; i < triggerWordSlot.links.length; i++){
-                        let link = targetNode.graph.getLink(triggerWordSlot.links[i]);
-                        let tmpNode = targetNode.graph.getNodeById(link.target_id);
-                        if(tmpNode.type == 'TriggerWord Toggle (LoraManager)'){
-                            tempNodes.push(tmpNode);
-                        }
-                    }
-
-                    setTimeout(() => {
-                        for(let i = 0; i < tempNodes.length; i++){
-                            let tmpNode = tempNodes[i];
-                        }
-                    }, 100);
                 }else if(o.type == 1){
                     loraEntry.children[1].children[1].value = value;
                     lorasData[index].strength = value;
@@ -1140,7 +1135,7 @@ export default function (sdppp, version = 1) {
         }
     });
 
-    sdppp.widgetable.add("BranchToggleNode", {
+    sdppp.widgetable.add("Branch Switch", {
         asNormalNode: true,
         formatter: (node) => {
             return {
@@ -1165,7 +1160,7 @@ export default function (sdppp, version = 1) {
         }
     });
 
-    sdppp.widgetable.add("BranchBooleanNode", {
+    sdppp.widgetable.add("Branch Boolean", {
         asNormalNode: true,
         formatter: (node) => {
             return {
@@ -1192,24 +1187,21 @@ export default function (sdppp, version = 1) {
 
 
 
-    sdppp.widgetable.add("SDPPPLayout", {
+    sdppp.widgetable.add("Branch Group", {
 
         formatter: (node) => {
-            // 为SDPPPLayout节点添加@branch_mode元数据，定义属性为combo类型
+            // 为Branch Group节点添加@branch_mode元数据，定义属性为combo类型
             if (node.constructor && !node.constructor["@branch_mode"]) {
                 node.constructor["@branch_mode"] = {
                     type: "combo",
                     values: ["Default", "MaxOne", "AlwaysOne"]
                 };
             }
-            window.kolidSDPPP_LayoutDict.set(node, []);
-            let widgetRemappingArr = window.kolidSDPPP_LayoutDict.get(node);
+            window.sdppp_data.LayoutDict.set(node, []);
+            let widgetRemappingArr = window.sdppp_data.LayoutDict.get(node);
 
-            if (!('collect_LoadLoraPackNode' in node.properties)) {
-                node.setProperty('collect_LoadLoraPackNode', true);
-            }
-            if (!('collect_BranchToggleNode' in node.properties)) {
-                node.setProperty('collect_BranchToggleNode', true);
+            if (!('collect_BranchSwitchNode' in node.properties)) {
+                node.setProperty('collect_BranchSwitchNode', true);
             }
             if (!('collect_BranchBooleanNode' in node.properties)) {
                 node.setProperty('collect_BranchBooleanNode', true);
@@ -1231,104 +1223,17 @@ export default function (sdppp, version = 1) {
             const widgets = [];
             const blocks = [];
 
-            let collect_LoadLoraPackNode = node.properties.collect_LoadLoraPackNode;
-            if(collect_LoadLoraPackNode){
-                let filteredLoraPackNodes = window.sdppp_data.loraPackNodes.filter(n=>{
-                    if(graph != n.graph) return false;
-                    let toMatch = n.widgets[0].value;
-                    if(!toMatch.match(matchStr)) return false;
-                    if(n.color != matchColor) return false;
-                    return true;
-                });
-
-                for (let index = 0; index < filteredLoraPackNodes.length; index++) {
-                    const targetNode = filteredLoraPackNodes[index];
-                    
-                    widgetRemappingArr.push({
-                        node: targetNode,
-                        widgetIndex: 1
-                    });
-
-                    let toMatch = targetNode.widgets[0].value;
-
-                    widgets.push({
-                        value: targetNode.widgets[1].value,
-                        name: toMatch.match(/[^\\/]+(?=\.)/g)?.[0] || "None",
-                        outputType: "toggle",
-                        uiWeight: 12,
-                    });
-                    
-                    
-                    if(targetNode.widgets[1].value){
-                        if(targetNode.properties.json_positive){
-                            let jsonPos = JSON.parse(targetNode.properties.json_positive);
-                            let jsonToggles = {};
-
-                            try {
-                                jsonToggles = targetNode.properties?.json_positive_toggles 
-                                    ? JSON.parse(targetNode.properties.json_positive_toggles) 
-                                    : {};
-                            } catch {
-                                jsonToggles = {};
-                            }
-                        
-                            for (const key in jsonPos) {
-                                if (jsonPos.hasOwnProperty(key)) {      // 防止遍历到原型链上的属性
-                                    if(!jsonToggles.hasOwnProperty(key)){
-                                        jsonToggles[key] = true;
-                                    }
-                                    widgetRemappingArr.push({
-                                        node: targetNode,
-                                        widgetIndex: -1,
-                                        toggleName: key
-                                    })
-                                    widgets.push({
-                                        value: jsonToggles[key],
-                                        name: key,
-                                        outputType: "toggle",
-                                        uiWeight: 4
-                                    })
-                                }
-                            }
-
-                            targetNode.properties.json_positive_toggles = JSON.stringify(jsonToggles);
-                        }
-                        
-                        if(targetNode.properties.show_strength){
-                            widgetRemappingArr.push({
-                                node: targetNode,
-                                widgetIndex: 4
-                            })
-
-                            widgets.push({
-                                value: targetNode.widgets[4].value, // 主值widget
-                                name: 'Strength',   // 参数名widget
-                                outputType: "number",
-                                options: {
-                                    max: targetNode.properties.sdppp_max,
-                                    min: targetNode.properties.sdppp_min,
-                                    step: targetNode.properties.sdppp_step,
-                                    slider: true 
-                                },
-                                uiWeight: 12 // 独占整行
-                            });
-                        }
-                    }
-                }
-            }
-
-            
-            let collect_BranchToggleNode = node.properties.collect_BranchToggleNode;
+            let collect_BranchSwitchNode = node.properties.collect_BranchSwitchNode;
             let collect_BranchBooleanNode = node.properties.collect_BranchBooleanNode;
 
             // 过滤出符合条件的BranchNode
             let filteredBranchNodes = window.sdppp_data.branchNodes
             .filter(n=>{
                 if(graph != n.graph) return false;
-                if(n.type == 'BranchToggleNode'){
-                    return collect_BranchToggleNode;
+                if(n.type == 'Branch Switch'){
+                    return collect_BranchSwitchNode;
                 }
-                else if(n.type == 'BranchBooleanNode'){
+                else if(n.type == 'Branch Boolean'){
                     return collect_BranchBooleanNode;
                 }
                 return false;
@@ -1340,30 +1245,34 @@ export default function (sdppp, version = 1) {
                 return true;
             });
             
-            // 获取SDPPPLayout节点自身的branch_mode
+            // 获取Branch Group节点自身的branch_mode
             const layoutBranchMode = node.properties.branch_mode || 'Default';
             
             // Default模式：保持原有逻辑，每个节点作为独立的toggle控件显示
             if (layoutBranchMode === 'Default' || filteredBranchNodes.length === 0) {
                 for (const targetNode of filteredBranchNodes) {
-                    // 仅当hide属性为false时才添加widget到界面
-                    if(!targetNode.properties.hide){
+                    let addFlag = true;
+
+                    if('hide' in targetNode.properties && targetNode.properties.hide) {
+                        addFlag = false;
+                    }
+                    if(addFlag){
                         blocks.push({
-                            id: targetNode.id,
+                            indent : 0,
+                            id : targetNode.id
                         });
                     }
-
                     // 初始化expand_nodes
                     if(targetNode.widgets[0].value){
                         let expandNodes = targetNode.properties.expand_nodes;
                         if(expandNodes){
+                            if(addFlag){
+                                blocks[blocks.length - 1].indent = 1;
+                                blocks[blocks.length - 1].split = true;
+                            }
                             let processNodes = new Set();
-                            let nodeTitles = getNodeTitles(expandNodes);
-                            for(let nodeTitle of nodeTitles){
-                                let expandNode = node.graph.nodes.find(n => n.title === nodeTitle || n.type === nodeTitle);
-                                if(expandNode){
-                                    blocks.push(...ExpandNode(targetNode, expandNode, processNodes));
-                                }
+                            for(let expandNode of getNodes(targetNode, expandNodes)){
+                                blocks.push(...ExpandNode(targetNode, expandNode, processNodes, 1));
                             }
                         }
                     }
@@ -1372,7 +1281,6 @@ export default function (sdppp, version = 1) {
             // AlwaysOne模式：将所有BranchNode打包成一个combo控件
             else if (layoutBranchMode === 'AlwaysOne') {
                 if (filteredBranchNodes.length > 0) {
-                    // 收集所有节点，包括hide为true的节点
                     let allNodes = filteredBranchNodes;
                     
                     // 收集仅hide为false的节点标题，用于combo控件
@@ -1416,39 +1324,23 @@ export default function (sdppp, version = 1) {
                         // 初始化activeNodes
                         let activeNodes = expandNode.properties.active_nodes;
                         if(activeNodes){
-                            let nodeTitles = getNodeTitles(activeNodes);
-                            for(let nodeTitle of nodeTitles){
-                                let activeNode = node.graph.nodes.find(n => n.title === nodeTitle || n.type === nodeTitle);
-                                if(activeNode){
-                                    // 设置节点mode: true时为0，false时为2
-                                    activeNode.mode = expandNode.widgets[0].value ? 0 : 2;
-                                }
+                            for(let activeNode of getNodes(node, activeNodes)){
+                                activeNode.mode = expandNode.widgets[0].value ? 0 : 2;
                             }
                         }
-                        // 初始化foldoutNodes
                         let foldoutNodes = expandNode.properties.foldout_nodes;
                         if(foldoutNodes){
-                            let nodeTitles = getNodeTitles(foldoutNodes);
-                            for(let nodeTitle of nodeTitles){
-                                let foldoutNode = node.graph.nodes.find(n => n.title === nodeTitle || n.type === nodeTitle);
-                                if(foldoutNode){
-                                    // 控制节点折叠状态
-                                    if(foldoutNode.collapsed == expandNode.widgets[0].value) {
-                                        foldoutNode.collapse();
-                                    }
+                            for(let foldoutNode of getNodes(node, foldoutNodes)){
+                                if(foldoutNode.collapsed == expandNode.widgets[0].value) {
+                                    foldoutNode.collapse();
                                 }
                             }
                         }
-                        // 初始化expand_nodes
                         let expandNodes = expandNode.properties.expand_nodes;
                         if(expandNodes){
                             let processNodes = new Set();
-                            let nodeTitles = getNodeTitles(expandNodes);
-                            for(let nodeTitle of nodeTitles){
-                                let subExpandNode = node.graph.nodes.find(n => n.title === nodeTitle || n.type === nodeTitle);
-                                if(subExpandNode){
-                                    blocks.push(...ExpandNode(expandNode, subExpandNode, processNodes));
-                                }
+                            for(let subExpandNode of getNodes(node, expandNodes)){
+                                blocks.push(...ExpandNode(expandNode, subExpandNode, processNodes, 1));
                             }
                         }
                     }
@@ -1501,55 +1393,35 @@ export default function (sdppp, version = 1) {
                         // 初始化activeNodes
                         let activeNodes = expandNode.properties.active_nodes;
                         if(activeNodes){
-                            let nodeTitles = getNodeTitles(activeNodes);
-                            for(let nodeTitle of nodeTitles){
-                                let activeNode = node.graph.nodes.find(n => n.title === nodeTitle || n.type === nodeTitle);
-                                if(activeNode){
-                                    // 设置节点mode: true时为0，false时为2
-                                    activeNode.mode = expandNode.widgets[0].value ? 0 : 2;
-                                }
+                            for(let activeNode of getNodes(node, activeNodes)){
+                                activeNode.mode = expandNode.widgets[0].value ? 0 : 2;
                             }
                         }
-                        // 初始化foldoutNodes
                         let foldoutNodes = expandNode.properties.foldout_nodes;
                         if(foldoutNodes){
-                            let nodeTitles = getNodeTitles(foldoutNodes);
-                            for(let nodeTitle of nodeTitles){
-                                let foldoutNode = node.graph.nodes.find(n => n.title === nodeTitle || n.type === nodeTitle);
-                                if(foldoutNode){
-                                    // 控制节点折叠状态
-                                    if(foldoutNode.collapsed == expandNode.widgets[0].value) {
-                                        foldoutNode.collapse();
-                                    }
+                            for(let foldoutNode of getNodes(node, foldoutNodes)){
+                                if(foldoutNode.collapsed == expandNode.widgets[0].value) {
+                                    foldoutNode.collapse();
                                 }
                             }
                         }
-                        // 初始化expand_nodes
                         let expandNodes = expandNode.properties.expand_nodes;
                         if(expandNodes){
                             let processNodes = new Set();
-                            let nodeTitles = getNodeTitles(expandNodes);
-                            for(let nodeTitle of nodeTitles){
-                                let subExpandNode = node.graph.nodes.find(n => n.title === nodeTitle || n.type === nodeTitle);
-                                if(subExpandNode){
-                                    blocks.push(...ExpandNode(expandNode, subExpandNode, processNodes));
-                                }
+                            for(let subExpandNode of getNodes(node, expandNodes)){
+                                blocks.push(...ExpandNode(expandNode, subExpandNode, processNodes, 1));
                             }
                         }
                     }
                 }
             }
 
-            // 处理SDPPPLayout节点自身的expand_nodes
+            // 处理Branch Group节点自身的expand_nodes
             let layoutExpandNodes = node.properties.expand_nodes;
             if(layoutExpandNodes){
                 let processNodes = new Set();
-                let nodeTitles = getNodeTitles(layoutExpandNodes);
-                for(let nodeTitle of nodeTitles){
-                    let expandNode = node.graph.nodes.find(n => n.title === nodeTitle || n.type === nodeTitle);
-                    if(expandNode){
-                        blocks.push(...ExpandNode(node, expandNode, processNodes));
-                    }
+                for(let expandNode of getNodes(node, layoutExpandNodes)){
+                    blocks.push(...ExpandNode(node, expandNode, processNodes, 1));
                 }
             }
 
@@ -1560,49 +1432,14 @@ export default function (sdppp, version = 1) {
             };
         },
         setter: (node, widgetIndex, value) => {
-            let widgetRemappingArr = window.kolidSDPPP_LayoutDict.get(node);
+            let widgetRemappingArr = window.sdppp_data.LayoutDict.get(node);
             let o = widgetRemappingArr[widgetIndex];
             let targetIndex = o.widgetIndex;
             let targetNode = o.node;
-            
-            if(targetNode.type == "LoadLoraPackNode"){
-                if(targetIndex == -1){
-                    let jsonPos = JSON.parse(targetNode.properties.json_positive);
-                    let jsonToggles = {};
-                    try {
-                        jsonToggles = targetNode.properties?.json_positive_toggles 
-                            ? JSON.parse(targetNode.properties.json_positive_toggles) 
-                            : {};
-                    } catch {
-                        jsonToggles = {};
-                    }
-                    jsonToggles[o.toggleName] = value;
-
-                    let strs = [];
-
-                    for (const key in jsonPos) {
-                        if (jsonPos.hasOwnProperty(key)) {      // 防止遍历到原型链上的属性
-                            if(!jsonToggles.hasOwnProperty(key)){
-                                jsonToggles[key] = true;
-                            }
-                            if(jsonToggles[key]){
-                                strs.push(jsonPos[key]);
-                            }
-                        }
-                    }
-
-                    targetNode.properties.json_positive_toggles = JSON.stringify(jsonToggles);
-                    targetNode.widgets[2].value = strs.join(', ');
-                }else if(targetIndex == 4){
-                    targetNode.widgets[4].value = value;
-                    targetNode.widgets[5].value = value;
-                }else{
-                    targetNode.widgets[targetIndex].value = value;
-                }
-            }
+        
             
             // 检查是否是分组节点（widgetIndex为-1表示分组）
-            else if(Array.isArray(targetNode)){
+            if(Array.isArray(targetNode)){
                 if(targetIndex === -1){
                     // 分组节点处理，主要是AlwaysOne模式的combo控件更新
                     if(o.mode === 'AlwaysOne'){

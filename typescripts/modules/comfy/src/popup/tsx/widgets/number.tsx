@@ -52,9 +52,11 @@ export const NumberWidget: React.FC<NumberWidgetProps> = ({
             <Flex
                 style={{ width: '100%', ...uiWeightCSS }}
                 align='center'
+                gap='8px'
             >
+                {uiWeight === 12 && name && <span style={{ flex: 1 }}>{name}</span>}
                 <Slider
-                    style={{ flex: 1 }}
+                    style={{ flex: 2 }}
                     min={inputMin}
                     max={inputMax}
                     step={inputStep}

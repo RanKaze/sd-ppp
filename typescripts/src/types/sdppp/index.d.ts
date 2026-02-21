@@ -11,13 +11,16 @@ export interface WidgetTableStructureNode {
         overrideId?: number;
         uiWeight?: number;
         overrideId?: number;
-        overrideWidgetIndex?: number;
+        indent?: number;
+        split?: boolean;
     }[];
     blocks?: WidgetTableStructureBlock[];
     uiWeightSum: number
 }
 export interface WidgetTableStructureBlock {
     id: number;
+    indent: number;
+    split?: boolean;
     widgetModifiers?: {
         overrideName?: string;
         overrideWeight?: number;

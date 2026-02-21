@@ -3,18 +3,6 @@ const app = (window as any).comfyAPI.app.app;
 const $el = (window as any).comfyAPI.ui.$el;
 const api = (window as any).comfyAPI.api.api;
 
-// 递归查找节点
-function graphFindNodeById(graph: any, id: number): any {
-    for (const node of graph.nodes) {
-        if (node.id == id) return node;
-        if (node.subgraph && node.subgraph.nodes) {
-            const found = graphFindNodeById(node.subgraph, id);
-            if (found) return found;
-        }
-    }
-    return undefined;
-}
-
 // 递归遍历所有下级节点
 function* graphIterateAllNodes(graph: any): Generator<any> {
     for (const node of graph.nodes) {
@@ -76,5 +64,5 @@ function* iterateSiblingNodes(node: any): Generator<any> {
 }
 
 export {
-    app, $el, api, graphFindNodeById, graphIterateAllNodes, graphIterateAllGroups, findSiblingNodeById, findSiblingNode, iterateSiblingNodes, getRootGraph
+    app, $el, api, graphIterateAllNodes, graphIterateAllGroups, findSiblingNodeById, findSiblingNode, iterateSiblingNodes, getRootGraph
 }

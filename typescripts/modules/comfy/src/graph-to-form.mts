@@ -2,7 +2,7 @@ import { pageStore } from "photoshopModels.mjs";
 import i18n from "../../../src/common/i18n.mts";
 import { sdpppX } from "../../../src/common/sdpppX.mts";
 import { WidgetTableStructure, WidgetTableStructureBlock, WidgetTableStructureNode, WidgetTableValue } from "../../../src/types/sdppp";
-import { app, graphIterateAllNodes, graphIterateAllGroups, graphFindNodeById } from "./comfy-globals.mts";
+import { app, graphIterateAllNodes, graphIterateAllGroups } from "./comfy-globals.mts";
 
 // Define a type for the converter function
 type NodeConverter = (node: any) => WidgetTableStructureNode | null;
@@ -61,8 +61,8 @@ function filterWidgets(widgets : any[], node : any) : any[] {
     });
 }
 
-function* getBlockWidgets(graph: any, id : number) : Generator<any> {
-    const node = graphFindNodeById(graph, id);
+function* getBlockWidgets(graph: any, block : WidgetTableStructureBlock) : Generator<any> {
+    const node = graph.getNodeById(block.id);
     const converter = customNodeConvertersByWildcard.find(([wildcard]) => {
         return wildcardMatch(wildcard, node.type);
     });
@@ -73,14 +73,16 @@ function* getBlockWidgets(graph: any, id : number) : Generator<any> {
             if (converted) {
                 let widgets = converted.widgets;
                 widgets.forEach((widget: any, index : number) => {
-                    widget.overrideId = id;
+                    widget.overrideId = block.id;
                     widget.overrideWidgetIndex = index;
+                    widget.indent = block.indent;
+                    widget.split = block.split || false;
                 })
                 widgets = filterWidgets(widgets, node);
                 yield* widgets;
                 if(converted.blocks){
-                    for(let block of converted.blocks){
-                        yield* getBlockWidgets(graph, block.id);
+                    for(let b of converted.blocks){
+                        yield* getBlockWidgets(graph, b);
                     }
                 }
                 return;
@@ -104,15 +106,16 @@ function* getBlockWidgets(graph: any, id : number) : Generator<any> {
             let widgets = converted.widgets;
             widgets.forEach((widget: any, index : number) => {
                 widget.name = widgets.length == 1 ? node.title : widget.name;
-                widget.overrideId = id;
+                widget.overrideId = block.id;
                 widget.overrideWidgetIndex = index;
+                widget.indent = block.indent;
+                widget.split = block.split || false;
             })
             widgets = filterWidgets(widgets, node);
             yield* widgets;
-            // 其实一般不会调用...但是留着吧..万一呢?
             if(converted.blocks){
-                for(let block of converted.blocks){
-                    yield* getBlockWidgets(graph, block.id);
+                for(let b of converted.blocks){
+                    yield* getBlockWidgets(graph, b);
                 }
             }
             return;
@@ -127,8 +130,10 @@ function* getBlockWidgets(graph: any, id : number) : Generator<any> {
         options: widget.options
     }));
     widgets.forEach((widget: any, index : number) => {
-        widget.overrideId = id;
+        widget.overrideId = block.id;
         widget.overrideWidgetIndex = index;
+        widget.indent = block.indent;
+        widget.split = block.split || false;
     })
     widgets = filterWidgets(widgets, node);
     yield* widgets;
@@ -168,7 +173,6 @@ export function getWidgetTableValue(graph: any): WidgetTableValue {
 
     Array.from(graphIterateAllNodes(graph))
         .forEach((node: any) => {
-            if (!node.widgets || node.widgets.length == 0) return; // no widgets
             const converter = customNodeConvertersByWildcard.find(([wildcard]) => {
                 return wildcardMatch(wildcard, node.type);
             }) || defaultConverter;
@@ -179,7 +183,7 @@ export function getWidgetTableValue(graph: any): WidgetTableValue {
                         let allValues = filterWidgets(converted.widgets, node).map((widget: any) => widget.value);
                         if(converted.blocks){
                             for(let block of converted.blocks){
-                                for(let widget of getBlockWidgets(graph, block.id)){
+                                for(let widget of getBlockWidgets(graph, block)){
                                     allValues.push(widget.value);
                                 }
                             }
@@ -241,9 +245,12 @@ export function makeWidgetTableStructure(graph: any, activeWorkflow: any): Widge
                         if (converted) {
                             converted.id = node.id;
                             let allWidgets = filterWidgets(converted.widgets, node);
+                            allWidgets.forEach((widget: any) => {
+                                widget.indent = 0;
+                            });
                             if(converted.blocks){
                                 for(let block of converted.blocks){
-                                    allWidgets.push(...getBlockWidgets(graph, block.id));
+                                    allWidgets.push(...getBlockWidgets(graph, block));
                                 }
                             }
                             converted.widgets = allWidgets;
@@ -277,6 +284,9 @@ export function makeWidgetTableStructure(graph: any, activeWorkflow: any): Widge
             if (defaultConverter) {
                 const converted = defaultConverter[1].formatter(node);
                 if (converted) {
+                    converted.widgets.forEach((widget: any) => {
+                        widget.indent = 0;
+                    });
                     return Object.assign(converted, {
                         uiWeightSum: converted.widgets.reduce((sum: number, widget: any) => sum + (widget.uiWeight || 12), 0),
                     });
@@ -289,7 +299,8 @@ export function makeWidgetTableStructure(graph: any, activeWorkflow: any): Widge
                     name: widget.label || widget.name,
                     outputType: widget.type || "string",
                     value: widget.value,
-                    options: widget.options
+                    options: widget.options,
+                    indent: 0
                 }))
             };
             return Object.assign(converted, {

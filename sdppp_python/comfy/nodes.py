@@ -544,8 +544,66 @@ def define_comfyui_nodes(sdpppServer):
                 action=action
             ))
             return (layer_or_group, )
-
         
+    class BranchGroupNode:
+        @classmethod
+        def INPUT_TYPES(cls):
+            return {"required": {
+                    "comment": ("STRING", {"default": "", "multiline": True}),
+                }
+            }
+
+        RETURN_TYPES = ()
+        RETURN_NAMES = ()
+        FUNCTION = "excute"
+        CATEGORY = "Kolid-Toolkit"
+
+        def excute(self, comment):  
+            return ()    
+
+    class BranchSwitchNode:
+        @classmethod
+        def INPUT_TYPES(s):
+            return {
+                "required": {
+                    "value": ("*", {"lazy" : True}),
+                    "toggle": ("BOOLEAN", {"default": False})
+                },
+            }
+
+        RETURN_TYPES = ("*",)
+        RETURN_NAMES = ("*",)
+        FUNCTION = "execute"
+        CATEGORY = "Kolid-Toolkit"
+
+        def check_lazy_status(self, value, toggle):
+            if toggle:
+                return ["value"]
+            return []
+
+        def execute(self, *args, **kwargs):
+            toggleValue = kwargs['toggle']
+            if toggleValue:
+                return (kwargs['value'],)
+            return (None,)
+        
+
+    class BranchBooleanNode:
+        @classmethod
+        def INPUT_TYPES(s):
+            return {
+                "required": {
+                    "toggle": ("BOOLEAN", {"default": False})
+                },
+            }
+
+        RETURN_TYPES = ("BOOLEAN",)
+        RETURN_NAMES = ("toggle",)
+        FUNCTION = "execute"
+        CATEGORY = "Kolid-Toolkit"
+
+        def execute(self, toggle):
+            return (toggle,)
         
 
     # class SDPPPSettingsNode:
@@ -564,6 +622,8 @@ def define_comfyui_nodes(sdpppServer):
     #     def action(self, key, **kwargs):
     #         return (None,)
 
+
+
     return {
         'SDPPP Get Document': GetDocumentNode,
         'SDPPP Get Layer By ID': GetLayerNode,
@@ -575,4 +635,8 @@ def define_comfyui_nodes(sdpppServer):
         'SDPPP Parse Layer Info': ParseLayerInfoNode,
         'SDPPP Select Layer And Run PS Action': SelectLayerAndRunPSActionNode,
         # 'SDPPP Settings': SDPPPSettingsNode,
+        
+        "Branch Group": BranchGroupNode,
+        "Branch Switch": BranchSwitchNode,
+        "Branch Boolean": BranchBooleanNode,
     }

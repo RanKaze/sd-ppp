@@ -3,6 +3,8 @@ import i18n from "./i18n.mjs";
 
 import type { WidgetTableStructure, WidgetTableStructureGroup, WidgetTableStructureNode, WidgetTableValue } from "../types/sdppp/index.js";
 import { computeUIWeightCSS, useTraceUpdate } from "./tsx/util.js";
+import { WidgetTreeBuilder, TreeNode } from "./WidgetTreeBuilder.js";
+import { WorkflowEditField } from "./tsx/WorkflowEditField.tsx";
 
 interface WorkflowEditProps {
     widgetTableStructure: WidgetTableStructure;
@@ -28,23 +30,60 @@ export default function WorkflowEdit({
 }: WorkflowEditProps) {
     const [groupFilter, setGroupFilter] = useState<number>(0);
 
+    function renderWidgetNode(indent: number, node: TreeNode | WidgetTableStructureNode['widgets'][number], fieldInfo: WidgetTableStructureNode, groupColor: string): ReactNode | undefined {
+        if (node && 'outputType' in node) {
+            // 这是一个 widget
+            const widget = node as WidgetTableStructureNode['widgets'][number];
+            const context = { keepRender: true, result: [] as any[] };
+            const widgetIndex = fieldInfo.widgets.indexOf(widget);
+            onWidgetRender?.(context, fieldInfo, widget, widgetIndex);
+            //let rn = (
+            //    <div className="workflow-edit-widget-item" data-indent={indent} style={{
+            //        flex: '1 1 auto',
+            //        marginBottom: '4px',
+            //    }}>
+            //        {context.result}
+            //    </div>
+            //);
+            //return <WidgetRenderErrorBoundary key={widgetIndex}>{rn}</WidgetRenderErrorBoundary>
+            return context.result[0];
+        }else{
+            let widgetElements: (ReactNode | undefined)[] = [];
+            // 遍历节点的所有子元素
+            for (let index = 0; index < node.nodes.length; index++) {
+                const item = node.nodes[index];
+                // 这是一个 TreeNode
+                widgetElements.push(renderWidgetNode(node.indent, item, fieldInfo, groupColor));
+            }
+
+            widgetElements = widgetElements.filter(Boolean) as ReactNode[];
+            if(widgetElements.length === 0) return undefined;
+            // 生成容器
+            return (
+                <div className="workflow-edit-indent-container" data-indent={node.indent} style={{ 
+                    borderColor: groupColor,
+                    backgroundColor: 'rgba(52, 52, 52, .3)',
+                    border: `1px solid ${groupColor}`,
+                    borderRadius: '3px',
+                    borderTopRightRadius: '0',
+                    borderBottomRightRadius: '0',
+                    flex: '1 1 auto',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    overflow: 'hidden',
+                    paddingTop: '4px',
+                    paddingBottom: '4px',
+                    paddingLeft: '8px',
+                }}>
+                    {widgetElements}
+                </div>
+            );
+        }
+    }
+
     const allRenderedFields = useMemo(() => {
         return widgetTableStructure.nodeIndexes.map(nodeID => {
             const fieldInfo = widgetTableStructure.nodes[nodeID]
-            const reduceWidgetRender = (context: {
-                keepRender: boolean;
-                result: any[];
-            }, widget: WidgetTableStructureNode['widgets'][0], widgetIndex: number) => {
-                if (!context.keepRender) return context;
-
-                if (widget.outputType === 'error') {
-                    context.result.push(<span className="list-error-label">{widgetTableValue[fieldInfo.id][widgetIndex]}</span>)
-                    return context;
-
-                } else if (onWidgetRender?.(context, fieldInfo, widget, widgetIndex)) {
-                }
-                return context;
-            }
             const group = Object.values(widgetTableStructure.groups).find(group => group.nodeIDs.includes(fieldInfo.id))
             const groupColor = group?.color || 'rgba(127, 127, 127, .4)'
             if (groupFilter && group?.id !== groupFilter) return null;
@@ -53,30 +92,52 @@ export default function WorkflowEdit({
                 fieldInfo.widgets[0].outputType !== 'number' ||
                 !widgetTableStructure.extraOptions?.useSliderForNumberWidget
             )
+            
+            const hasIndent = fieldInfo.widgets.some((w: any) => w.indent !== undefined);
+            
+            let widgetsContent: ReactNode[];
+            if (hasIndent) {
+                widgetsContent = [];
+                const tree = WidgetTreeBuilder.buildTree(fieldInfo.widgets);
+                for (let index = 0; index < tree.nodes.length; index++) {
+                    const item = tree.nodes[index];
+                    // 这是一个 TreeNode
+                    widgetsContent.push(renderWidgetNode(tree.indent, item, fieldInfo, groupColor));
+                }
+                widgetsContent = widgetsContent.filter(Boolean) as ReactNode[];
+            } else {
+                const reduceWidgetRender = (context: {
+                    keepRender: boolean;
+                    result: any[];
+                }, widget: WidgetTableStructureNode['widgets'][0], widgetIndex: number) => {
+                    if (!context.keepRender) return context;
+
+                    if (widget.outputType === 'error') {
+                        context.result.push(<span className="list-error-label">{widgetTableValue[fieldInfo.id][widgetIndex]}</span>)
+                        return context;
+
+                    } else if (onWidgetRender?.(context, fieldInfo, widget, widgetIndex)) {
+                    }
+                    return context;
+                }
+                widgetsContent = fieldInfo.widgets.reduce(reduceWidgetRender, {
+                    keepRender: true,
+                    result: [] as any[]
+                }).result.map((item: ReactNode, index: number) => {
+                    return <WidgetRenderErrorBoundary key={index}>{item}</WidgetRenderErrorBoundary>
+                });
+            }
+
             return (
-                <div className="workflow-edit-field" key={fieldInfo.id}>
-                    <div className="workflow-edit-field-title" title={fieldInfo.title} style={{
-                        ...computeUIWeightCSS(useShortTitle ? 4 : 12),
-                        borderColor: groupColor
-                    }}>
-                        {onTitleRender ?
-                            onTitleRender(fieldInfo.title, fieldInfo) :
-                            <span>{fieldInfo.title}</span>
-                        }
-                    </div>
-                    {
-                        fieldInfo.widgets.reduce(reduceWidgetRender, {
-                            keepRender: true,
-                            result: [] as any[]
-                        }).result.map((item: ReactNode, index: number) => {
-                            return <WidgetRenderErrorBoundary key={index}>{item}</WidgetRenderErrorBoundary>
-                        })
-                    }
-                    {
-                        widgetTableErrors[fieldInfo.id] ?
-                            <span className="list-error-label">{widgetTableErrors[fieldInfo.id]}</span> : ''
-                    }
-                </div>
+                <WorkflowEditField 
+                    key={fieldInfo.id}
+                    fieldInfo={fieldInfo}
+                    groupColor={groupColor}
+                    useShortTitle={useShortTitle}
+                    widgetsContent={widgetsContent}
+                    widgetTableErrors={widgetTableErrors}
+                    onTitleRender={onTitleRender}
+                />
             )
         }).filter(Boolean)
     }, [widgetTableStructure, widgetTableValue, widgetTableErrors, onWidgetRender, onWidgetChange, onTitleRender, groupFilter])

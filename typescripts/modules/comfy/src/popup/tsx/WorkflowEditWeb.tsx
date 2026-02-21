@@ -13,7 +13,6 @@ import { ComfySocket } from "../../socket/ComfySocket.mts";
 import { ImageWidget } from "./widgets/image_mask_path";
 import { WidgetTableStructure, WidgetTableStructureNode, WidgetTableValue } from "../../../../../src/types/sdppp";
 import { pageStore } from "photoshopModels.mjs";
-import { graphFindNodeById } from "src/comfy-globals.mjs";
 declare const app: any;
 const api = (window as any).comfyAPI.api.api;
 export class WorkflowEditWrap extends React.Component<{
@@ -186,7 +185,7 @@ export class WorkflowEditWrap extends React.Component<{
                 }else{
                     wi = widgetIndex;
                 }
-                const node = graphFindNodeById(app.graph, targetNodeId);
+                const node = app.graph.getNodeById(targetNodeId);
                 if (!node) return;
                 setWidgetValue(node, wi, value);
                 // },
@@ -203,8 +202,7 @@ export class WorkflowEditWrap extends React.Component<{
             onWidgetRender: (context: {
                 keepRender: boolean;
                 result: any[];
-            }, fieldInfo: WidgetTableStructureNode, widget: WidgetTableStructureNode['widgets'][0], widgetIndex: number) => {
-                const w = widget as any;
+            }, fieldInfo: WidgetTableStructureNode, widget: WidgetTableStructureNode['widgets'][number], widgetIndex: number) => {
                 const valueId = fieldInfo.id;
                 const valueIndex = widgetIndex;
                 if (widget.outputType === 'number') {
@@ -278,6 +276,7 @@ export class WorkflowEditWrap extends React.Component<{
                             uiWeight={widget.uiWeight || 12}
                             key={widgetIndex}
                             value={this.state.widgetTableValue[valueId][valueIndex]}
+                            name={widget.name}
                             onValueChange={(v) => {
                                 editProps.onWidgetChange(valueId, valueIndex, v, fieldInfo);
                             }}

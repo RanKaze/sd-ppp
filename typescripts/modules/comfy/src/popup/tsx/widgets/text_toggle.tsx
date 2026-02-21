@@ -35,7 +35,7 @@ export const TextToggleWidget: React.FC<TextToggleProps> = ({
                 padding: '4px 8px',
                 cursor: 'pointer',
                 backgroundColor: value ? 'rgb(64, 143, 208)' : 'rgb(45,53,66)',
-                color: value ? 'var(--p-highlight-text-color)' : 'inherit',
+                color: value ? 'white' : 'white',
                 textAlign: 'center',
                 userSelect: 'none',
                 transition: 'background-color 0.2s, color 0.2s, transform 0.1s, opacity 0.1s',
