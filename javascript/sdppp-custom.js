@@ -1136,7 +1136,6 @@ export default function (sdppp, version = 1) {
     });
 
     sdppp.widgetable.add("Branch Switch", {
-        asNormalNode: true,
         formatter: (node) => {
             return {
                 title: getTitle(node),
@@ -1161,7 +1160,6 @@ export default function (sdppp, version = 1) {
     });
 
     sdppp.widgetable.add("Branch Boolean", {
-        asNormalNode: true,
         formatter: (node) => {
             return {
                 title: getTitle(node),

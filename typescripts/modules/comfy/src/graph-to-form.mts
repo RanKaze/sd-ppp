@@ -11,7 +11,6 @@ type Callback = (app : any) => void;
 
 const customNodeConvertersByWildcard: [string, {
     onRefresh?: Callback | null,
-    asNormalNode?: boolean,
     formatter: NodeConverter,
     setter: WidgetValueSetter | null
 }][] = [];
@@ -22,14 +21,12 @@ const RefreshEvent : Callback[] = [];
 sdpppX.widgetable = sdpppX.widgetable || {};
 sdpppX.widgetable.add = function (name: string, fn: NodeConverter | {
     onRefresh?: Callback,
-    asNormalNode?: boolean,
     formatter: NodeConverter,
     setter: WidgetValueSetter
 }) {
     if (typeof fn === 'function') {
         customNodeConvertersByWildcard.push([name, {
             onRefresh: null,
-            asNormalNode: false,
             formatter: fn,
             setter: null
         }]);
@@ -231,37 +228,35 @@ export function makeWidgetTableStructure(graph: any, activeWorkflow: any): Widge
             });
             
             if (converter) {
-                if (converter[1].asNormalNode === undefined || !converter[1].asNormalNode){
-                    try {
-                        const converted = converter[1].formatter(node);
-                        if (converted) {
-                            converted.id = node.id;
-                            let widgets = converted.widgets;
-                            widgets.forEach((widget: any, index: number) => {
-                                widget.nodeId = node.id;
-                                widget.widgetIndex = index;
-                                widget.indent = 0;
-                            });
-                            widgets = filterWidgets(widgets, node);
-                            if(converted.blocks){
-                                for(let block of converted.blocks){
-                                    widgets.push(...getBlockWidgets(graph, block));
-                                }
+                try {
+                    const converted = converter[1].formatter(node);
+                    if (converted) {
+                        converted.id = node.id;
+                        let widgets = converted.widgets;
+                        widgets.forEach((widget: any, index: number) => {
+                            widget.nodeId = node.id;
+                            widget.widgetIndex = index;
+                            widget.indent = 0;
+                        });
+                        widgets = filterWidgets(widgets, node);
+                        if(converted.blocks){
+                            for(let block of converted.blocks){
+                                widgets.push(...getBlockWidgets(graph, block));
                             }
-                            converted.widgets = widgets;
-                            converted.uiWeightSum = widgets.reduce((sum: number, widget: any) => sum + (widget.uiWeight || 12), 0);
-                            return converted;
                         }
-                    } catch (e: any) {
-                        return {
-                            id: node.id,
-                            title: title,
-                            uiWeightSum: 12,
-                            widgets: [{
-                                outputType: 'error',
-                                value: i18n('convert widget {0} failed:', converter[0]) + (e.message || e || '') + (e?.stack || '')
-                            }]
-                        }
+                        converted.widgets = widgets;
+                        converted.uiWeightSum = widgets.reduce((sum: number, widget: any) => sum + (widget.uiWeight || 12), 0);
+                        return converted;
+                    }
+                } catch (e: any) {
+                    return {
+                        id: node.id,
+                        title: title,
+                        uiWeightSum: 12,
+                        widgets: [{
+                            outputType: 'error',
+                            value: i18n('convert widget {0} failed:', converter[0]) + (e.message || e || '') + (e?.stack || '')
+                        }]
                     }
                 }
             }
