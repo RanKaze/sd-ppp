@@ -1,11 +1,11 @@
-import type { WidgetTableStructureNode } from "../types/sdppp/index.js";
+import type { WidgetStructure, WidgetTableStructureNode } from "../types/sdppp/index.js";
 
 /**
  * 树节点接口
  */
 export interface TreeNode {
     indent: number;
-    nodes: (TreeNode  | WidgetTableStructureNode['widgets'][number]) [];
+    nodes: (TreeNode  | WidgetStructure) [];
 }
 
 /**
@@ -18,7 +18,7 @@ export class WidgetTreeBuilder {
      * @param widgets widget 数组
      * @returns 树结构数组
      */
-    static buildTree(widgets: WidgetTableStructureNode['widgets']): TreeNode {
+    static buildTree(widgets: WidgetStructure[]): TreeNode {
         const rootNode: TreeNode = {
             indent: 0,
             nodes: []

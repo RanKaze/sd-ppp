@@ -1,7 +1,7 @@
 import React, { ReactNode, useMemo, useState } from "react";
 import i18n from "./i18n.mjs";
 
-import type { WidgetTableStructure, WidgetTableStructureGroup, WidgetTableStructureNode, WidgetTableValue } from "../types/sdppp/index.js";
+import type { WidgetStructure, WidgetTableStructure, WidgetTableStructureGroup, WidgetTableStructureNode, WidgetTableValue } from "../types/sdppp/index.js";
 import { computeUIWeightCSS, useTraceUpdate } from "./tsx/util.js";
 import { WidgetTreeBuilder, TreeNode } from "./WidgetTreeBuilder.js";
 import { WorkflowEditField } from "./tsx/WorkflowEditField.tsx";
@@ -14,10 +14,10 @@ interface WorkflowEditProps {
     onWidgetRender?: (context: {
         keepRender: boolean;
         result: any[];
-    }, fieldInfo: WidgetTableStructureNode, widget: WidgetTableStructureNode['widgets'][0], widgetIndex: number) => boolean;
+    }, widget: WidgetStructure, tableIndex: number) => boolean;
     onTitleRender?: (title: string, fieldInfo: WidgetTableStructureNode) => ReactNode;
 
-    onWidgetChange: (nodeID: number, widgetIndex: number, value: any, originNodeData: WidgetTableStructureNode) => void;
+    onWidgetChange: (widget: WidgetStructure, value: any) => void;
 }
 
 export default function WorkflowEdit({
@@ -30,13 +30,12 @@ export default function WorkflowEdit({
 }: WorkflowEditProps) {
     const [groupFilter, setGroupFilter] = useState<number>(0);
 
-    function renderWidgetNode(indent: number, node: TreeNode | WidgetTableStructureNode['widgets'][number], fieldInfo: WidgetTableStructureNode, groupColor: string): ReactNode | undefined {
+    function renderWidgetNode(indent: number, node: TreeNode | WidgetStructure, fieldInfo: WidgetTableStructureNode, groupColor: string): ReactNode | undefined {
         if (node && 'outputType' in node) {
             // 这是一个 widget
-            const widget = node as WidgetTableStructureNode['widgets'][number];
+            const widget = node as WidgetStructure;
             const context = { keepRender: true, result: [] as any[] };
-            const widgetIndex = fieldInfo.widgets.indexOf(widget);
-            onWidgetRender?.(context, fieldInfo, widget, widgetIndex);
+            onWidgetRender?.(context, widget, fieldInfo.widgets.indexOf(widget));
             //let rn = (
             //    <div className="workflow-edit-widget-item" data-indent={indent} style={{
             //        flex: '1 1 auto',
@@ -109,14 +108,14 @@ export default function WorkflowEdit({
                 const reduceWidgetRender = (context: {
                     keepRender: boolean;
                     result: any[];
-                }, widget: WidgetTableStructureNode['widgets'][0], widgetIndex: number) => {
+                }, widget: WidgetStructure, widgetIndex: number) => {
                     if (!context.keepRender) return context;
 
                     if (widget.outputType === 'error') {
                         context.result.push(<span className="list-error-label">{widgetTableValue[fieldInfo.id][widgetIndex]}</span>)
                         return context;
 
-                    } else if (onWidgetRender?.(context, fieldInfo, widget, widgetIndex)) {
+                    } else if (onWidgetRender?.(context, widget, widgetIndex)) {
                     }
                     return context;
                 }

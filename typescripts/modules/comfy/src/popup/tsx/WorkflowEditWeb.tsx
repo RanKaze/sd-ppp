@@ -11,7 +11,7 @@ import { ConfigProvider, Input } from "antd";
 import { EditableTitle } from "./widgets/EditableTitle";
 import { ComfySocket } from "../../socket/ComfySocket.mts";
 import { ImageWidget } from "./widgets/image_mask_path";
-import { WidgetTableStructure, WidgetTableStructureNode, WidgetTableValue } from "../../../../../src/types/sdppp";
+import { WidgetStructure, WidgetTableStructure, WidgetTableStructureNode, WidgetTableValue } from "../../../../../src/types/sdppp";
 import { pageStore } from "photoshopModels.mjs";
 declare const app: any;
 const api = (window as any).comfyAPI.api.api;
@@ -173,21 +173,12 @@ export class WorkflowEditWrap extends React.Component<{
             //     lastError: this.state.comfyStatus.lastError,
             //     executingNodeTitle: this.state.comfyStatus.executingNodeTitle,
             // },
-            onWidgetChange: async (nodeid: number, widgetIndex: number, value: any, fieldInfo: WidgetTableStructureNode) => {
-                const w = fieldInfo.widgets[widgetIndex] as any;
-                let targetNodeId = nodeid;
-                let wi : number;
-                if(w.overrideId !== undefined){
-                    targetNodeId = w.overrideId;
-                }
-                if(w.overrideWidgetIndex !== undefined){
-                    wi = w.overrideWidgetIndex;
-                }else{
-                    wi = widgetIndex;
-                }
+            onWidgetChange: async (widget: WidgetStructure, value: any) => {
+                let targetNodeId = widget.nodeId;
+                let targetWidgetIndex = widget.widgetIndex;
                 const node = app.graph.getNodeById(targetNodeId);
                 if (!node) return;
-                setWidgetValue(node, wi, value);
+                setWidgetValue(node, targetWidgetIndex, value);
                 // },
                 // onRun: async (size: number = 1) => {
                 //     for (let i = 0; i < size; i++)
@@ -202,9 +193,8 @@ export class WorkflowEditWrap extends React.Component<{
             onWidgetRender: (context: {
                 keepRender: boolean;
                 result: any[];
-            }, fieldInfo: WidgetTableStructureNode, widget: WidgetTableStructureNode['widgets'][number], widgetIndex: number) => {
-                const valueId = fieldInfo.id;
-                const valueIndex = widgetIndex;
+            }, widget: WidgetStructure, tableIndex: number) => {
+                
                 if (widget.outputType === 'number') {
                     const min = widget.options?.min ?? 0;
                     const max = widget.options?.max ?? 100;
@@ -213,14 +203,14 @@ export class WorkflowEditWrap extends React.Component<{
                     context.result.push(
                         <NumberWidget
                             uiWeight={widget.uiWeight || 12}
-                            key={widgetIndex}
+                            key={tableIndex}
                             inputMin={min}
                             inputMax={max}
                             inputStep={step}
                             name={widget.name}
-                            value={parseFloat(this.state.widgetTableValue[valueId][valueIndex])}
+                            value={parseFloat(this.state.widgetTableValue[widget.nodeId][widget.widgetIndex])}
                             onValueChange={(v) => {
-                                editProps.onWidgetChange(valueId, valueIndex, v, fieldInfo);
+                                editProps.onWidgetChange(widget, v);
                             }}
                             extraOptions={this.state.widgetTableStructure.extraOptions}
                         />)
@@ -229,13 +219,13 @@ export class WorkflowEditWrap extends React.Component<{
                     context.result.push(
                         <ComboWidget
                             uiWeight={widget.uiWeight || 12}
-                            key={widgetIndex}
+                            key={tableIndex}
                             options={widget.options?.values || []}
                             name={widget.name}
                             onSelectUpdate={(v) => {
-                                editProps.onWidgetChange(valueId, valueIndex, v, fieldInfo);
+                                editProps.onWidgetChange(widget, v);
                             }}
-                            value={this.state.widgetTableValue[valueId][valueIndex]}
+                            value={this.state.widgetTableValue[widget.nodeId][widget.widgetIndex]}
                             extraOptions={this.state.widgetTableStructure.extraOptions}
                         />
                     )
@@ -244,11 +234,11 @@ export class WorkflowEditWrap extends React.Component<{
                     context.result.push(
                         <ToggleWidget
                             uiWeight={widget.uiWeight || 12}
-                            key={widgetIndex}
+                            key={tableIndex}
                             name={widget.name}
-                            value={this.state.widgetTableValue[valueId][valueIndex]}
+                            value={this.state.widgetTableValue[widget.nodeId][widget.widgetIndex]}
                             onValueChange={(v) => {
-                                editProps.onWidgetChange(valueId, valueIndex, v, fieldInfo);
+                                editProps.onWidgetChange(widget, v);
                             }}
                             extraOptions={this.state.widgetTableStructure.extraOptions}
                         />
@@ -259,11 +249,11 @@ export class WorkflowEditWrap extends React.Component<{
                     context.result.push(
                         <TextToggleWidget
                             uiWeight={widget.uiWeight ?? 12}
-                            key={widgetIndex}
+                            key={tableIndex}
                             text={widget.name}
-                            value={this.state.widgetTableValue[valueId][valueIndex]}
+                            value={this.state.widgetTableValue[widget.nodeId][widget.widgetIndex]}
                             onValueChange={(v) => {
-                                editProps.onWidgetChange(valueId, valueIndex, v, fieldInfo);
+                                editProps.onWidgetChange(widget, v);
                             }}
                             extraOptions={this.state.widgetTableStructure.extraOptions}
                         />
@@ -274,11 +264,11 @@ export class WorkflowEditWrap extends React.Component<{
                     context.result.push(
                         <StringWidget
                             uiWeight={widget.uiWeight || 12}
-                            key={widgetIndex}
-                            value={this.state.widgetTableValue[valueId][valueIndex]}
+                            key={tableIndex}
+                            value={this.state.widgetTableValue[widget.nodeId][widget.widgetIndex]}
                             name={widget.name}
                             onValueChange={(v) => {
-                                editProps.onWidgetChange(valueId, valueIndex, v, fieldInfo);
+                                editProps.onWidgetChange(widget, v);
                             }}
                             extraOptions={this.state.widgetTableStructure.extraOptions}
                         />
@@ -291,13 +281,13 @@ export class WorkflowEditWrap extends React.Component<{
                     context.result.push(
                         <ImageWidget
                             uiWeight={widget.uiWeight || 12}
-                            value={this.state.widgetTableValue[valueId][valueIndex]}
+                            value={this.state.widgetTableValue[widget.nodeId][widget.widgetIndex]}
                             options={widget.options?.values || []}
-                            key={widgetIndex}
+                            key={tableIndex}
                             onValueChange={async (v) => {
-                                editProps.onWidgetChange(valueId, valueIndex, v, fieldInfo);
+                                editProps.onWidgetChange(widget, v);
                             }}
-                            nodeID={valueId}
+                            nodeID={widget.nodeId}
                             extraOptions={this.state.widgetTableStructure.extraOptions}
                         />
                     );

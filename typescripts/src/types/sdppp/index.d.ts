@@ -1,22 +1,25 @@
 
 export type WidgetTableValue = Record<number, any[]>
+
+export interface WidgetStructure{
+    nodeId: number;
+    widgetIndex: number;
+    name?: string;
+    outputType: string;
+    options?: any;
+    uiWeight?: number;
+    indent?: number;
+    split?: boolean;
+}
+
 export interface WidgetTableStructureNode {
     id: number;
     title: string;
-    widgets: {
-        // value: string;
-        name?: string;
-        outputType: string;
-        options?: any;
-        overrideId?: number;
-        uiWeight?: number;
-        overrideId?: number;
-        indent?: number;
-        split?: boolean;
-    }[];
+    widgets: WidgetStructure[];
     blocks?: WidgetTableStructureBlock[];
     uiWeightSum: number
 }
+
 export interface WidgetTableStructureBlock {
     id: number;
     indent: number;
@@ -26,12 +29,14 @@ export interface WidgetTableStructureBlock {
         overrideWeight?: number;
     }[];
 }
+
 export interface WidgetTableStructureGroup {
     id: number;
     name: string,
     color: string,
     nodeIDs: number[]
 }
+
 export interface WidgetTableStructure {
     widgetTableID: string,
     widgetTablePath: string,

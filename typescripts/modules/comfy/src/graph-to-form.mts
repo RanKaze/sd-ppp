@@ -1,7 +1,7 @@
 import { pageStore } from "photoshopModels.mjs";
 import i18n from "../../../src/common/i18n.mts";
 import { sdpppX } from "../../../src/common/sdpppX.mts";
-import { WidgetTableStructure, WidgetTableStructureBlock, WidgetTableStructureNode, WidgetTableValue } from "../../../src/types/sdppp";
+import { WidgetStructure, WidgetTableStructure, WidgetTableStructureBlock, WidgetTableStructureNode, WidgetTableValue } from "../../../src/types/sdppp";
 import { app, graphIterateAllNodes, graphIterateAllGroups } from "./comfy-globals.mts";
 
 // Define a type for the converter function
@@ -72,9 +72,9 @@ function* getBlockWidgets(graph: any, block : WidgetTableStructureBlock) : Gener
             const converted = converter[1].formatter(node);
             if (converted) {
                 let widgets = converted.widgets;
-                widgets.forEach((widget: any, index : number) => {
-                    widget.overrideId = block.id;
-                    widget.overrideWidgetIndex = index;
+                widgets.forEach((widget: WidgetStructure, index : number) => {
+                    widget.nodeId = block.id;
+                    widget.widgetIndex = index;
                     widget.indent = block.indent;
                     widget.split = block.split || false;
                 })
@@ -104,10 +104,10 @@ function* getBlockWidgets(graph: any, block : WidgetTableStructureBlock) : Gener
         const converted = defaultConverter[1].formatter(node);
         if (converted) {
             let widgets = converted.widgets;
-            widgets.forEach((widget: any, index : number) => {
+            widgets.forEach((widget : WidgetStructure, index : number) => {
                 widget.name = widgets.length == 1 ? node.title : widget.name;
-                widget.overrideId = block.id;
-                widget.overrideWidgetIndex = index;
+                widget.nodeId = block.id;
+                widget.widgetIndex = index;
                 widget.indent = block.indent;
                 widget.split = block.split || false;
             })
@@ -129,9 +129,9 @@ function* getBlockWidgets(graph: any, block : WidgetTableStructureBlock) : Gener
         value: widget.value,
         options: widget.options
     }));
-    widgets.forEach((widget: any, index : number) => {
-        widget.overrideId = block.id;
-        widget.overrideWidgetIndex = index;
+    widgets.forEach((widget: WidgetStructure, index : number) => {
+        widget.nodeId = block.id;
+        widget.widgetIndex = index;
         widget.indent = block.indent;
         widget.split = block.split || false;
     })
@@ -180,15 +180,7 @@ export function getWidgetTableValue(graph: any): WidgetTableValue {
                 try {
                     const converted = converter[1].formatter(node);
                     if (converted) {
-                        let allValues = filterWidgets(converted.widgets, node).map((widget: any) => widget.value);
-                        if(converted.blocks){
-                            for(let block of converted.blocks){
-                                for(let widget of getBlockWidgets(graph, block)){
-                                    allValues.push(widget.value);
-                                }
-                            }
-                        }
-                        ret[node.id] = allValues;
+                        ret[node.id] = converted.widgets.map((widget: any) => widget.value);
                     }
                 } catch (e: any) {
                     ret[node.id] = [];
@@ -244,17 +236,20 @@ export function makeWidgetTableStructure(graph: any, activeWorkflow: any): Widge
                         const converted = converter[1].formatter(node);
                         if (converted) {
                             converted.id = node.id;
-                            let allWidgets = filterWidgets(converted.widgets, node);
-                            allWidgets.forEach((widget: any) => {
+                            let widgets = converted.widgets;
+                            widgets.forEach((widget: any, index: number) => {
+                                widget.nodeId = node.id;
+                                widget.widgetIndex = index;
                                 widget.indent = 0;
                             });
+                            widgets = filterWidgets(widgets, node);
                             if(converted.blocks){
                                 for(let block of converted.blocks){
-                                    allWidgets.push(...getBlockWidgets(graph, block));
+                                    widgets.push(...getBlockWidgets(graph, block));
                                 }
                             }
-                            converted.widgets = allWidgets;
-                            converted.uiWeightSum = allWidgets.reduce((sum: number, widget: any) => sum + (widget.uiWeight || 12), 0);
+                            converted.widgets = widgets;
+                            converted.uiWeightSum = widgets.reduce((sum: number, widget: any) => sum + (widget.uiWeight || 12), 0);
                             return converted;
                         }
                     } catch (e: any) {
