@@ -1,10 +1,7 @@
-import React from 'react';
-import { Input } from 'antd';
-import type { TextAreaProps } from 'antd/es/input';
+import React, { useRef, useEffect } from 'react';
 import { useUIWeightCSS } from './hooks.mts';
 import { BaseWidgetProps } from './_base';
-
-const { TextArea } = Input;
+import { TextAreaAutoComplete } from '../../../../../../src/common/autocomplete';
 
 interface StringWidgetProps extends BaseWidgetProps {
     value?: string;
@@ -20,8 +17,16 @@ export const StringWidget: React.FC<StringWidgetProps> = ({
     name
 }) => {
     const uiWeightCSS = useUIWeightCSS(uiWeight || 12);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-    const handleChange: TextAreaProps['onChange'] = (e) => {
+    // 使用自动补全功能
+    useEffect(() => {
+        if (textareaRef.current) {
+            const autoComplete = new TextAreaAutoComplete(textareaRef.current);
+        }
+    }, [textareaRef]);
+
+    const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         onValueChange(e.target.value);
     };
 
@@ -31,10 +36,21 @@ export const StringWidget: React.FC<StringWidgetProps> = ({
             style={uiWeightCSS}
         >
             {name && <div style={{ marginBottom: '4px', fontWeight: 'bold' }}>{name}</div>}
-            <TextArea
+            <textarea
+                ref={textareaRef}
                 value={value}
                 onChange={handleChange}
-                autoSize={{ minRows: 1 }}
+                spellCheck="false"
+                style={{
+                    width: '100%',
+                    minHeight: '32px',
+                    padding: '4px 8px',
+                    border: '1px solid #d9d9d9',
+                    borderRadius: '4px',
+                    resize: 'vertical',
+                    fontFamily: 'inherit',
+                    fontSize: '14px'
+                }}
             />
         </div>
     );

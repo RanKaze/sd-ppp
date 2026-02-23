@@ -6,11 +6,15 @@ import { pageStore, waitModelInited } from '../photoshopModels.mts';
 import initPopup from './popup/sdpppPopup.mjs';
 import PreviewSender from './PreviewSender.mjs';
 import { sdpppX } from '../../../src/common/sdpppX.mjs';
+import { initAutoComplete } from '../../../src/common/AutoCompleteInit';
 import './widgettable-entry.mjs'
 import { simplifyWorkflowPath } from '../../../src/common/string-util.mts';
 declare const graph: any;
 
 async function _init(app: any, api: any, $el: any) {
+	// 初始化自动补全系统
+	initAutoComplete();
+
 	api.addEventListener("progress", ({ detail }: { detail: { value: number, max: number } }) => {
 		if (!detail || isNaN(detail.value / detail.max)) return;
 		const progress = Math.round((detail.value / detail.max) * 100);

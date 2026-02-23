@@ -1,0 +1,54 @@
+.pysssss-autocomplete {
+    position: absolute;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+    z-index: 10000;
+    max-height: 300px;
+    overflow-y: auto;
+    min-width: 200px;
+}
+
+.pysssss-autocomplete-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background-color 0.2s;
+}
+
+.pysssss-autocomplete-item:hover {
+    background-color: #333;
+}
+
+.pysssss-autocomplete-item--selected {
+    background-color: #444;
+}
+
+.pysssss-autocomplete-highlight {
+    background-color: rgba(255, 255, 255, 0.2);
+    border-radius: 2px;
+    padding: 0 2px;
+}
+
+.pysssss-autocomplete-pill {
+    background-color: #555;
+    color: #fff;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-size: 10px;
+    margin-left: auto;
+}
+
+.pysssss-autocomplete-item-info {
+    margin-left: 8px;
+    color: #aaa;
+    text-decoration: none;
+}
+
+.pysssss-autocomplete-item-info:hover {
+    color: #fff;
+}
