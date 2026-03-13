@@ -28,10 +28,7 @@
  */
 
 
-function parseLoraValue(value) {
-  if (!value) return [];
-  return Array.isArray(value) ? value : [];
-}
+
 
 /**
  * 
@@ -322,8 +319,7 @@ export default function (sdppp, version = 1) {
     }
 
     sdppp.widgetable.add("sdppp_layout_参数更新", {
-        onRefresh: (app) => {
-            const graph = app.graph;
+        onRefresh: (graph) => {
 
             window.sdppp_data.branchNodes = [];
             window.sdppp_data.branchTitleMap.clear();
@@ -957,17 +953,20 @@ export default function (sdppp, version = 1) {
                 title: getTitle(node),
                 widgets: node.widgets.map((widget) => {
                     if (widget.type == "speak_and_recognation_type") return null;
-                    const ret = {
+                    let ret = {
                         outputType: widget.type || "string",
                         value: widget.value,
                         options: widget.options,
                         uiWeight: widget.uiWeight || 12
                     }
+                    if (widget.type == "boolean"){
+                        ret.uiWeight = 0;
+                    }
                     if (node.widgets.length != 1) {
                         ret.name = widget.label || widget.name;
                     }
-
                     return ret;
+                    
                 }).filter(Boolean)
             };
         }
@@ -1116,8 +1115,10 @@ export default function (sdppp, version = 1) {
 
                 const loraEntry = node.lorasWidget.element.children[1 + index];
                 const widget = node.lorasWidget;
-                const lorasData = parseLoraValue(widget.value);
-
+                let lorasData = [];
+                if(widget.value && Array.isArray(widget.value)){
+                    lorasData = widget.value;
+                }
                 if(o.type == 0){
                     const toggleElement = loraEntry.children[0].children[1];
                     toggleElement.click();
@@ -1136,7 +1137,11 @@ export default function (sdppp, version = 1) {
     });
 
     sdppp.widgetable.add("Branch Switch", {
+        asNormalNode: true,
         formatter: (node) => {
+            if(node.properties["sdppp_widgetable_title"]){
+                delete node.properties["sdppp_widgetable_title"];
+            }
             return {
                 title: getTitle(node),
                 widgets: [
@@ -1160,7 +1165,11 @@ export default function (sdppp, version = 1) {
     });
 
     sdppp.widgetable.add("Branch Boolean", {
+        asNormalNode: true,
         formatter: (node) => {
+            if(node.properties["sdppp_widgetable_title"]){
+                delete node.properties["sdppp_widgetable_title"];
+            }
             return {
                 title: getTitle(node),
                 widgets: [

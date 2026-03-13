@@ -11,6 +11,7 @@ type Callback = (app : any) => void;
 
 const customNodeConvertersByWildcard: [string, {
     onRefresh?: Callback | null,
+    asNormalNode?: boolean,
     formatter: NodeConverter,
     setter: WidgetValueSetter | null
 }][] = [];
@@ -28,7 +29,8 @@ sdpppX.widgetable.add = function (name: string, fn: NodeConverter | {
         customNodeConvertersByWildcard.push([name, {
             onRefresh: null,
             formatter: fn,
-            setter: null
+            setter: null,
+            asNormalNode: false
         }]);
     } else {
         if(fn.onRefresh){
@@ -39,8 +41,8 @@ sdpppX.widgetable.add = function (name: string, fn: NodeConverter | {
     }
 }
 
-function refresh(app : any){
-    RefreshEvent.forEach(fn => fn(app));
+function refresh(graph : any){
+    RefreshEvent.forEach(fn => fn(graph));
 }
 
 function filterWidgets(widgets : any[], node : any) : any[] {
@@ -201,7 +203,7 @@ export function makeWidgetTableStructure(graph: any, activeWorkflow: any): Widge
             useSliderForNumberWidget: pageStore.data.useSliderForNumberWidget
         }
     };
-    refresh(app);
+    refresh(graph);
     const groups: WidgetTableStructure['groups'] = graph.groups
         .map((group: any) => {
             group.recomputeInsideNodes();
@@ -227,7 +229,10 @@ export function makeWidgetTableStructure(graph: any, activeWorkflow: any): Widge
                 return wildcardMatch(wildcard, node.type);
             });
             
+
             if (converter) {
+                if (converter[1].asNormalNode && !title.startsWith("#")) return null;
+                
                 try {
                     const converted = converter[1].formatter(node);
                     if (converted) {

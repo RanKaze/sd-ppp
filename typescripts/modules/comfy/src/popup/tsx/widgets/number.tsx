@@ -65,7 +65,7 @@ export const NumberWidget: React.FC<NumberWidgetProps> = ({
                     onChangeComplete={handleBlur}
                 />
                 <InputNumber
-                    style={{ width: 80 }}
+                    style={{ width: 80, textAlign: 'center' }}
                     min={inputMin}
                     max={inputMax}
                     step={inputStep} 

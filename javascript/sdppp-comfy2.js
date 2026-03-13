@@ -4378,11 +4378,27 @@ const Oi = (o = {}) => {
 !Xe[a(1932)] && Xe.use(Di)[a(2462)]({ resources: { "zh-CN": { translation: Xt(a(1528)) }, "en-US": { translation: Xt(a(2650)) } }, lng: _i(), fallbackLng: "en-US", interpolation: { escapeValue: !1 } });
 globalThis.sdpppX2 = globalThis[a(438)] || {};
 const xx = globalThis.sdpppX2, F0 = [];
-xx.widgetable = xx[a(1901)] || {}, xx[a(1901)][a(986)] = function(o, x) {
-  const t = a;
-  typeof x === t(1149) ? F0[t(3019)]([o, { formatter: x, setter: null }]) : F0[t(3019)]([o, x]);
+const customNodeConvertersByWildcard = [];
+const RefreshEvent = [];
+
+xx.widgetable = xx[a(1901)] || {}, xx[a(1901)][a(986)] = function(name, fn) {
+  if (typeof fn === 'function') {
+    customNodeConvertersByWildcard.push([name, {
+        onRefresh: null,
+        formatter: fn,
+        setter: null,
+        asNormalNode: false
+    }]);
+  } else {
+      if(fn.onRefresh){
+          RefreshEvent.push(fn.onRefresh);
+      }else{
+          customNodeConvertersByWildcard.push([name, fn]);
+      }
+  }
 };
-function ji(o, x, t) {
+
+function jimore(o, x, t) {
   var c;
   const r = a, e = F0[r(304)](([u]) => u == r(479)), s = F0[r(304)](([u]) => ia(u, o[r(2291)])) || e;
   let n = !1;
@@ -4392,7 +4408,8 @@ function ji(o, x, t) {
   }
   !n && (o[r(1204)][x][r(935)] = t), (c = (Ne.workflowManager || Ne.extensionManager[r(1774)])[r(1763)]) == null || c[r(2225)][r(754)]();
 }
-function Tx(o) {
+
+function Txmore(o) {
   const x = a, t = {}, r = F0[x(304)](([e]) => e == x(479));
   return o[x(2844)].forEach((e) => {
     const s = x;
@@ -4406,7 +4423,293 @@ function Tx(o) {
     }
   }), t;
 }
-function ea(o, x) {
+
+
+
+function refresh(graph){
+    RefreshEvent.forEach(fn => fn(graph));
+}
+
+function filterWidgets(widgets, node) {
+    return widgets.filter((widget) => {
+        if (node.inputs && node.inputs.some((input) => {
+            if(input.label){
+                return input.label === widget.name && input.link;
+            }else{
+                return input.name === widget.name && input.link;
+            }
+        })) {
+            return false;
+        }
+        return true;
+    });
+}
+
+function wildcardMatch(pattern, text) {
+    // Convert wildcard pattern to regex pattern
+    const regexPattern = pattern
+        .replace(/[.+^${}()|[\]\\]/g, '\\$&') // Escape regex special chars except * and ?
+        .replace(/\*/g, '.*')                  // * matches any sequence
+        .replace(/\?/g, '.');                  // ? matches any single character
+
+    const regex = new RegExp(`^${regexPattern}$`);
+    return regex.test(text);
+}
+
+function* getBlockWidgets(graph, block) {
+    const node = graph.getNodeById(block.id);
+    const converter = customNodeConvertersByWildcard.find(([wildcard]) => {
+        return wildcardMatch(wildcard, node.type);
+    });
+
+    if (converter) {
+        try {
+            const converted = converter[1].formatter(node);
+            if (converted) {
+                let widgets = converted.widgets;
+                widgets.forEach((widget, index) => {
+                    widget.nodeId = block.id;
+                    widget.widgetIndex = index;
+                    widget.indent = block.indent;
+                    widget.split = block.split || false;
+                })
+                widgets = filterWidgets(widgets, node);
+                yield* widgets;
+                if(converted.blocks){
+                    for(let b of converted.blocks){
+                        yield* getBlockWidgets(graph, b);
+                    }
+                }
+                return;
+            }
+        } catch (e) {}
+    }
+
+    const defaultConverter = customNodeConvertersByWildcard.find(([wildcard]) => {
+        return wildcard == '__DEFAULT__'
+    })
+    if (defaultConverter) {
+        const converted = defaultConverter[1].formatter(node);
+        if (converted) {
+            let widgets = converted.widgets;
+            widgets.forEach((widget, index) => {
+                widget.name = widgets.length == 1 ? node.title : widget.name;
+                widget.nodeId = block.id;
+                widget.widgetIndex = index;
+                widget.indent = block.indent;
+                widget.split = block.split || false;
+            })
+            widgets = filterWidgets(widgets, node);
+            yield* widgets;
+            if(converted.blocks){
+                for(let b of converted.blocks){
+                    yield* getBlockWidgets(graph, b);
+                }
+            }
+            return;
+        }
+    }
+
+    let widgets = node.widgets;
+    widgets = widgets.map((widget) => ({
+        name: widget.label || widget.name,
+        outputType: widget.type || "string",
+        value: widget.value,
+        options: widget.options
+    }));
+    widgets.forEach((widget, index) => {
+        widget.nodeId = block.id;
+        widget.widgetIndex = index;
+        widget.indent = block.indent;
+        widget.split = block.split || false;
+    })
+    widgets = filterWidgets(widgets, node);
+    yield* widgets;
+}
+
+// 递归遍历所有下级节点
+function* graphIterateAllNodes(graph){
+    for (const node of graph.nodes) {
+        yield node;
+        if (node.subgraph && node.subgraph.nodes) {
+            yield* graphIterateAllNodes(node.subgraph);
+        }
+    }
+}
+
+
+function ji(node, widgetIndex, value) {
+  const defaultConverter = customNodeConvertersByWildcard.find(([wildcard]) => {
+      return wildcard == '__DEFAULT__'
+  })
+  const converter = customNodeConvertersByWildcard.find(([wildcard]) => {
+      return wildcardMatch(wildcard, node.type);
+  }) || defaultConverter;
+  let setted = false;
+  if (converter) {
+      const setter = converter[1].setter;
+      if (setter) {
+          setted = !!setter(node, widgetIndex, value);
+      }
+  }
+  if (!setted) {
+      node.widgets[widgetIndex].value = value;
+      node.widgets[widgetIndex].callback?.(value)
+  }
+  const workflowManager = Ne.workflowManager || Ne.extensionManager.workflow
+  workflowManager.activeWorkflow?.changeTracker.checkState()
+}
+
+function Tx(graph) {
+    const ret = {};
+    const defaultConverter = customNodeConvertersByWildcard.find(([wildcard]) => {
+        return wildcard == '__DEFAULT__'
+    })
+
+    Array.from(graphIterateAllNodes(graph))
+        .forEach((node) => {
+            const converter = customNodeConvertersByWildcard.find(([wildcard]) => {
+                return wildcardMatch(wildcard, node.type);
+            }) || defaultConverter;
+            if (converter) {
+                try {
+                    const converted = converter[1].formatter(node);
+                    if (converted) {
+                        ret[node.id] = converted.widgets.map((widget) => widget.value);
+                    }
+                } catch (e) {
+                    ret[node.id] = [];
+                }
+            }
+        });
+    return ret;
+}
+
+// ea(graph: any, activeWorkflow: any)
+function ea(graph, activeWorkflow) {
+  var s, n, i;
+  const t = a;
+  if (!graph) return { 
+    widgetableID: "", 
+    widgetablePath: "", 
+    nodes: {}, 
+    nodeIndexes: [], 
+    options: {}, 
+    note: "" 
+  };
+  refresh(graph);
+  const allNodes = Array.from(graphIterateAllNodes(graph));
+  const nodes = allNodes
+      .map((node) => {
+          if (node.mode != 0) return; // muted or by passed
+          const title = bx(node);
+          if (!title || title.startsWith(".")) return; // hidden
+          if (!node.widgets || node.widgets.length == 0) return; // no widgets
+
+          const converter = customNodeConvertersByWildcard.find(([wildcard]) => {
+              return wildcardMatch(wildcard, node.type);
+          });
+          
+
+          if (converter) {
+              if (converter[1].asNormalNode && !title.startsWith("#")) return null;
+              
+              try {
+                  const converted = converter[1].formatter(node);
+                  if (converted) {
+                      converted.id = node.id;
+                      let widgets = converted.widgets;
+                      widgets.forEach((widget, index) => {
+                          widget.nodeId = node.id;
+                          widget.widgetIndex = index;
+                          widget.indent = 0;
+                      });
+                      widgets = filterWidgets(widgets, node);
+                      if(converted.blocks){
+                          for(let block of converted.blocks){
+                              widgets.push(...getBlockWidgets(graph, block));
+                          }
+                      }
+                      converted.widgets = widgets;
+                      converted.uiWeightSum = widgets.reduce((sum, widget) => sum + (widget.uiWeight || 12), 0);
+                      return converted;
+                  }
+              } catch (e) {
+                  return {
+                      id: node.id,
+                      title: title,
+                      uiWeightSum: 12,
+                      widgets: [{
+                          outputType: 'error',
+                          value: i18n('convert widget {0} failed:', converter[0]) + (e.message || e || '') + (e?.stack || '')
+                      }]
+                  }
+              }
+          }
+
+          // generic node 
+          //only use the nodes starts with #
+          if (!title.startsWith("#")) {
+              return null;
+          }
+
+          let widgets = node.widgets;
+          const defaultConverter = customNodeConvertersByWildcard.find(([wildcard]) => {
+              return wildcard == '__DEFAULT__'
+          })
+          if (defaultConverter) {
+              const converted = defaultConverter[1].formatter(node);
+              if (converted) {
+                  converted.widgets.forEach((widget) => {
+                      widget.indent = 0;
+                  });
+                  return Object.assign(converted, {
+                      uiWeightSum: converted.widgets.reduce((sum, widget) => sum + (widget.uiWeight || 12), 0),
+                  });
+              }
+          }
+          const converted = {
+              id: node.id,
+              title: title,
+              widgets: widgets.map((widget) => ({
+                  name: widget.label || widget.name,
+                  outputType: widget.type || "string",
+                  value: widget.value,
+                  options: widget.options,
+                  indent: 0
+              }))
+          };
+          return Object.assign(converted, {
+              uiWeightSum: converted.widgets.reduce((sum, widget) => sum + (widget.uiWeight || 12), 0),
+          });
+      })
+      [t(362)](Boolean)
+      [t(1534)]((c, u) => {
+        const d = t;
+        let l = bx(c), f = bx(u);
+        return l = l.startsWith("#") ? 
+          l[d(1908)](1)[d(2845)]() : l[d(2845)](), f = f[d(1654)]("#") ? 
+            f[d(1908)](1)[d(2845)]() : 
+            f[d(2845)](), l.localeCompare(f);
+      });
+  const e = (
+              (n = (s = graph.nodes.find((c) => c[t(2291)] == "Note" && c[t(2673)][t(789)](/SD-?PPP/i))) == null ? 
+                void 0 : 
+                s[t(1204)][0]) == null ? 
+                  void 0 : 
+                  n[t(935)]
+            ) || "";
+  return { 
+    widgetablePath: ((i = activeWorkflow[t(2617)].extra) == null ? void 0 : i[t(1162)]) || activeWorkflow[t(648)], 
+    widgetableID: activeWorkflow.activeState.id, 
+    nodes: nodes.reduce((c, u) => (c[u.id] = u, c), {}), 
+    note: e, 
+    nodeIndexes: nodes.map((c) => c.id), 
+    options: {} 
+  };
+}
+
+function test(o, x) {
   var s, n, i;
   const t = a;
   if (!o) return { widgetableID: "", widgetablePath: "", nodes: {}, nodeIndexes: [], options: {}, note: "" };

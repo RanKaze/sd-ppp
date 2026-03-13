@@ -1,6 +1,5 @@
 
 const app = (window as any).comfyAPI.app.app;
-const $el = (window as any).comfyAPI.ui.$el;
 const api = (window as any).comfyAPI.api.api;
 
 // 递归遍历所有下级节点
@@ -64,5 +63,5 @@ function* iterateSiblingNodes(node: any): Generator<any> {
 }
 
 export {
-    app, $el, api, graphIterateAllNodes, graphIterateAllGroups, findSiblingNodeById, findSiblingNode, iterateSiblingNodes, getRootGraph
+    app, api, graphIterateAllNodes, graphIterateAllGroups, findSiblingNodeById, findSiblingNode, iterateSiblingNodes, getRootGraph
 }
