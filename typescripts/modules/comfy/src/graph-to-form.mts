@@ -2,7 +2,7 @@ import { pageStore } from "photoshopModels.mjs";
 import i18n from "../../../src/common/i18n.mts";
 import { sdpppX } from "../../../src/common/sdpppX.mts";
 import { WidgetStructure, WidgetTableStructure, WidgetTableStructureBlock, WidgetTableStructureNode, WidgetTableValue } from "../../../src/types/sdppp";
-import { app, graphIterateAllNodes, graphIterateAllGroups } from "./comfy-globals.mts";
+import { app, graphIterateAllNodes, graphIterateAllGroups, getPathFromNode, } from "./comfy-globals.mts";
 
 // Define a type for the converter function
 type NodeConverter = (node: any) => WidgetTableStructureNode | null;
@@ -72,7 +72,7 @@ function* getBlockWidgets(graph: any, block : WidgetTableStructureBlock) : Gener
             if (converted) {
                 let widgets = converted.widgets;
                 widgets.forEach((widget: WidgetStructure, index : number) => {
-                    widget.nodeId = block.id;
+                    widget.path = getPathFromNode(node);
                     widget.widgetIndex = index;
                     widget.indent = block.indent;
                     widget.split = block.split || false;
@@ -81,7 +81,7 @@ function* getBlockWidgets(graph: any, block : WidgetTableStructureBlock) : Gener
                 yield* widgets;
                 if(converted.blocks){
                     for(let b of converted.blocks){
-                        yield* getBlockWidgets(graph, b);
+                        yield* getBlockWidgets(node.graph, b);
                     }
                 }
                 return;
@@ -104,8 +104,8 @@ function* getBlockWidgets(graph: any, block : WidgetTableStructureBlock) : Gener
         if (converted) {
             let widgets = converted.widgets;
             widgets.forEach((widget : WidgetStructure, index : number) => {
+                widget.path = getPathFromNode(node);
                 widget.name = widgets.length == 1 ? node.title : widget.name;
-                widget.nodeId = block.id;
                 widget.widgetIndex = index;
                 widget.indent = block.indent;
                 widget.split = block.split || false;
@@ -114,7 +114,7 @@ function* getBlockWidgets(graph: any, block : WidgetTableStructureBlock) : Gener
             yield* widgets;
             if(converted.blocks){
                 for(let b of converted.blocks){
-                    yield* getBlockWidgets(graph, b);
+                    yield* getBlockWidgets(node.graph, b);
                 }
             }
             return;
@@ -129,7 +129,7 @@ function* getBlockWidgets(graph: any, block : WidgetTableStructureBlock) : Gener
         options: widget.options
     }));
     widgets.forEach((widget: WidgetStructure, index : number) => {
-        widget.nodeId = block.id;
+        widget.path = getPathFromNode(node);
         widget.widgetIndex = index;
         widget.indent = block.indent;
         widget.split = block.split || false;
@@ -179,10 +179,12 @@ export function getWidgetTableValue(graph: any): WidgetTableValue {
                 try {
                     const converted = converter[1].formatter(node);
                     if (converted) {
-                        ret[node.id] = converted.widgets.map((widget: any) => widget.value);
+                        if(converted.widgets.length != 0){
+                            ret[getPathFromNode(node)] = converted.widgets.map((widget: any) => widget.value);
+                        }
                     }
                 } catch (e: any) {
-                    ret[node.id] = [];
+                    return;
                 }
             }
         });
@@ -211,8 +213,8 @@ export function makeWidgetTableStructure(graph: any, activeWorkflow: any): Widge
                 id: group.id,
                 name: group.title,
                 color: group.color,
-                nodeIDs: group.nodes.map((node: any) => {
-                    return node.id;
+                nodePaths: group.nodes.map((node: any) => {
+                    return getPathFromNode(node);
                 })
             }
         });
@@ -228,7 +230,8 @@ export function makeWidgetTableStructure(graph: any, activeWorkflow: any): Widge
             const converter = customNodeConvertersByWildcard.find(([wildcard]) => {
                 return wildcardMatch(wildcard, node.type);
             });
-            
+
+            let path = getPathFromNode(node);
 
             if (converter) {
                 if (converter[1].asNormalNode && !title.startsWith("#")) return null;
@@ -236,17 +239,17 @@ export function makeWidgetTableStructure(graph: any, activeWorkflow: any): Widge
                 try {
                     const converted = converter[1].formatter(node);
                     if (converted) {
-                        converted.id = node.id;
+                        converted.path = path;
                         let widgets = converted.widgets;
                         widgets.forEach((widget: any, index: number) => {
-                            widget.nodeId = node.id;
+                            widget.path = getPathFromNode(node);
                             widget.widgetIndex = index;
                             widget.indent = 0;
                         });
                         widgets = filterWidgets(widgets, node);
                         if(converted.blocks){
                             for(let block of converted.blocks){
-                                widgets.push(...getBlockWidgets(graph, block));
+                                widgets.push(...getBlockWidgets(node.graph, block));
                             }
                         }
                         converted.widgets = widgets;
@@ -255,7 +258,7 @@ export function makeWidgetTableStructure(graph: any, activeWorkflow: any): Widge
                     }
                 } catch (e: any) {
                     return {
-                        id: node.id,
+                        path: path,
                         title: title,
                         uiWeightSum: 12,
                         widgets: [{
@@ -288,9 +291,11 @@ export function makeWidgetTableStructure(graph: any, activeWorkflow: any): Widge
                 }
             }
             const converted = {
-                id: node.id,
+                path: path,
                 title: title,
-                widgets: widgets.map((widget: any) => ({
+                widgets: widgets.map((widget: any, index: number) => ({
+                    path: [],
+                    widgetIndex: index,
                     name: widget.label || widget.name,
                     outputType: widget.type || "string",
                     value: widget.value,
@@ -316,11 +321,11 @@ export function makeWidgetTableStructure(graph: any, activeWorkflow: any): Widge
         widgetTablePersisted: activeWorkflow.isPersisted,
         widgetTableID: activeWorkflow.activeState.id,
         groups,
-        nodes: nodes.reduce((acc: Record<number, WidgetTableStructureNode>, node: WidgetTableStructureNode) => {
-            acc[node.id] = node;
+        nodes: nodes.reduce((acc: Record<string, WidgetTableStructureNode>, node: WidgetTableStructureNode) => {
+            acc[node.path] = node;
             return acc;
         }, {}),
-        nodeIndexes: nodes.map((node: WidgetTableStructureNode) => node.id),
+        nodeIndexes: nodes.map((node: WidgetTableStructureNode) => node.path),
         extraOptions: {
             useSliderForNumberWidget: pageStore.data.useSliderForNumberWidget
         }

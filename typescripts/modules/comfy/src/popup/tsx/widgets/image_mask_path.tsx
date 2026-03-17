@@ -2,25 +2,24 @@ import { BaseWidgetProps } from './_base';
 import { Select, Upload, Image, Flex } from 'antd';
 import { UploadIcon } from '../icons';
 import i18n from '../../../../../../src/common/i18n.mts';
-import { app } from 'src/comfy-globals.mjs';
+import { app, getNodeFromPath } from 'src/comfy-globals.mjs';
 
 interface ImageWidgetProps extends BaseWidgetProps {
     value: string;
     options: string[];
     onValueChange: (value: any) => void;
     extraOptions?: Record<string, any>;
-    nodeID: number;
+    path: string;
 }
 
-export const ImageWidget = ({ value, onValueChange, options, nodeID }: ImageWidgetProps) => {
+export const ImageWidget = ({ value, onValueChange, options, path }: ImageWidgetProps) => {
     const handleUpload = (info: any) => {
         if (info.file.status === 'done') {
             const uploadedPath = info.file.response.name; // 假设服务器返回的路径在response.path中
             onValueChange?.(uploadedPath);
         }
     };
-    const node = app.graph.nodes.find((node: any) => node.id === value)
-
+    
     return (
         <Flex gap={5} align='stretch' vertical>
             <Flex gap={5} vertical>
@@ -58,8 +57,8 @@ export const ImageWidget = ({ value, onValueChange, options, nodeID }: ImageWidg
                         cursor: 'pointer'
                     }}
                     onClick={(e) => {
-                        app.constructor.copyToClipspace(app.graph.getNodeById(nodeID))
-                        app.constructor.clipspace_return_node = app.graph.getNodeById(nodeID)
+                        app.constructor.copyToClipspace(getNodeFromPath(app.graph,path))
+                        app.constructor.clipspace_return_node = getNodeFromPath(app.graph,path)
                         app.constructor.open_maskeditor()
                     }}
                 />

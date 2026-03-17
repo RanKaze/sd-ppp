@@ -2,7 +2,7 @@ import { WorkflowCalleeActions } from "../../../../src/socket/WorkflowCalleeInte
 import { Socket, SocketConstructor } from "../../../../src/common/socket/Socket.mts";
 import { WorkflowCallerActions } from "../../../../src/socket/WorkflowCallerInterface.mts";
 import { pageStore } from "../../photoshopModels.mts";
-import { api, app } from "../comfy-globals.mts";
+import { api, app, getNodeFromPath } from "../comfy-globals.mts";
 import { blankGraph } from "../defaultGraph.mts";
 import { makeWidgetTableStructure, setWidgetValue } from "../graph-to-form.mts";
 import PreviewSender from "../PreviewSender.mts";
@@ -231,8 +231,8 @@ export function WorkflowCalleeSocket(SocketClass: SocketConstructor<Socket>) {
             await this.workflowManager.saveWorkflow(workflow);
         }
         public setNodeTitle(params: WorkflowCalleeActions['setNodeTitle']['params']) {
-            const { node_id, title } = params;
-            const node = app.graph.getNodeById(node_id);
+            const { node_path, title } = params;
+            const node = getNodeFromPath(app.graph, node_path);
             if (!node) throw new Error('Node not found');
             node.title = title;
             node.setProperty('sdppp_widgetable_title', title);

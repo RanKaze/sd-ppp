@@ -13,6 +13,7 @@ import { ComfySocket } from "../../socket/ComfySocket.mts";
 import { ImageWidget } from "./widgets/image_mask_path";
 import { WidgetStructure, WidgetTableStructure, WidgetTableStructureNode, WidgetTableValue } from "../../../../../src/types/sdppp";
 import { pageStore } from "photoshopModels.mjs";
+import { getNodeFromPath } from "src/comfy-globals.mjs";
 declare const app: any;
 const api = (window as any).comfyAPI.api.api;
 export class WorkflowEditWrap extends React.Component<{
@@ -174,9 +175,8 @@ export class WorkflowEditWrap extends React.Component<{
             //     executingNodeTitle: this.state.comfyStatus.executingNodeTitle,
             // },
             onWidgetChange: async (widget: WidgetStructure, value: any) => {
-                let targetNodeId = widget.nodeId;
                 let targetWidgetIndex = widget.widgetIndex;
-                const node = app.graph.getNodeById(targetNodeId);
+                let node = getNodeFromPath(app.graph, widget.path);
                 if (!node) return;
                 setWidgetValue(node, targetWidgetIndex, value);
                 // },
@@ -208,7 +208,7 @@ export class WorkflowEditWrap extends React.Component<{
                             inputMax={max}
                             inputStep={step}
                             name={widget.name}
-                            value={parseFloat(this.state.widgetTableValue[widget.nodeId][widget.widgetIndex])}
+                            value={parseFloat(this.state.widgetTableValue[widget.path][widget.widgetIndex])}
                             onValueChange={(v) => {
                                 editProps.onWidgetChange(widget, v);
                             }}
@@ -225,7 +225,7 @@ export class WorkflowEditWrap extends React.Component<{
                             onSelectUpdate={(v) => {
                                 editProps.onWidgetChange(widget, v);
                             }}
-                            value={this.state.widgetTableValue[widget.nodeId][widget.widgetIndex]}
+                            value={this.state.widgetTableValue[widget.path][widget.widgetIndex]}
                             extraOptions={this.state.widgetTableStructure.extraOptions}
                         />
                     )
@@ -236,7 +236,7 @@ export class WorkflowEditWrap extends React.Component<{
                             uiWeight={widget.uiWeight || 12}
                             key={tableIndex}
                             name={widget.name}
-                            value={this.state.widgetTableValue[widget.nodeId][widget.widgetIndex]}
+                            value={this.state.widgetTableValue[widget.path][widget.widgetIndex]}
                             onValueChange={(v) => {
                                 editProps.onWidgetChange(widget, v);
                             }}
@@ -251,7 +251,7 @@ export class WorkflowEditWrap extends React.Component<{
                             uiWeight={widget.uiWeight ?? 12}
                             key={tableIndex}
                             text={widget.name}
-                            value={this.state.widgetTableValue[widget.nodeId][widget.widgetIndex]}
+                            value={this.state.widgetTableValue[widget.path][widget.widgetIndex]}
                             onValueChange={(v) => {
                                 editProps.onWidgetChange(widget, v);
                             }}
@@ -265,7 +265,7 @@ export class WorkflowEditWrap extends React.Component<{
                         <StringWidget
                             uiWeight={widget.uiWeight || 12}
                             key={tableIndex}
-                            value={this.state.widgetTableValue[widget.nodeId][widget.widgetIndex]}
+                            value={this.state.widgetTableValue[widget.path][widget.widgetIndex]}
                             name={widget.name}
                             onValueChange={(v) => {
                                 editProps.onWidgetChange(widget, v);
@@ -281,13 +281,13 @@ export class WorkflowEditWrap extends React.Component<{
                     context.result.push(
                         <ImageWidget
                             uiWeight={widget.uiWeight || 12}
-                            value={this.state.widgetTableValue[widget.nodeId][widget.widgetIndex]}
+                            value={this.state.widgetTableValue[widget.path][widget.widgetIndex]}
                             options={widget.options?.values || []}
                             key={tableIndex}
                             onValueChange={async (v) => {
                                 editProps.onWidgetChange(widget, v);
                             }}
-                            nodeID={widget.nodeId}
+                            path={widget.path}
                             extraOptions={this.state.widgetTableStructure.extraOptions}
                         />
                     );
@@ -300,7 +300,7 @@ export class WorkflowEditWrap extends React.Component<{
                     title={title}
                     onTitleChange={(newTitle) => {
                         ComfySocket.instance.setNodeTitle({
-                            node_id: fieldInfo.id,
+                            node_path: fieldInfo.path,
                             title: newTitle
                         })
                     }}

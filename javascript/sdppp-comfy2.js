@@ -4424,6 +4424,17 @@ function Txmore(o) {
   }), t;
 }
 
+function getPathFromNode(node) {
+    let paths = [];
+    let graph = node.graph;
+    while (graph != graph.rootGraph) {
+        paths.push(graph.id);
+        graph = graph.rootGraph;
+    }
+
+    let path = paths.length == 0 ? node.id.toString() : paths.join("/") + "/" + node.id;
+    return path;
+}
 
 
 function refresh(graph){
@@ -4468,7 +4479,7 @@ function* getBlockWidgets(graph, block) {
             if (converted) {
                 let widgets = converted.widgets;
                 widgets.forEach((widget, index) => {
-                    widget.nodeId = block.id;
+                    widget.path = getPathFromNode(node);
                     widget.widgetIndex = index;
                     widget.indent = block.indent;
                     widget.split = block.split || false;
@@ -4477,7 +4488,7 @@ function* getBlockWidgets(graph, block) {
                 yield* widgets;
                 if(converted.blocks){
                     for(let b of converted.blocks){
-                        yield* getBlockWidgets(graph, b);
+                        yield* getBlockWidgets(node.graph, b);
                     }
                 }
                 return;
@@ -4493,8 +4504,8 @@ function* getBlockWidgets(graph, block) {
         if (converted) {
             let widgets = converted.widgets;
             widgets.forEach((widget, index) => {
+                widget.path = getPathFromNode(node);
                 widget.name = widgets.length == 1 ? node.title : widget.name;
-                widget.nodeId = block.id;
                 widget.widgetIndex = index;
                 widget.indent = block.indent;
                 widget.split = block.split || false;
@@ -4503,7 +4514,7 @@ function* getBlockWidgets(graph, block) {
             yield* widgets;
             if(converted.blocks){
                 for(let b of converted.blocks){
-                    yield* getBlockWidgets(graph, b);
+                    yield* getBlockWidgets(node.graph, b);
                 }
             }
             return;
@@ -4518,7 +4529,7 @@ function* getBlockWidgets(graph, block) {
         options: widget.options
     }));
     widgets.forEach((widget, index) => {
-        widget.nodeId = block.id;
+        widget.path = getPathFromNode(node);
         widget.widgetIndex = index;
         widget.indent = block.indent;
         widget.split = block.split || false;
@@ -4578,7 +4589,7 @@ function Tx(graph) {
                         ret[node.id] = converted.widgets.map((widget) => widget.value);
                     }
                 } catch (e) {
-                    ret[node.id] = [];
+                    return;
                 }
             }
         });
@@ -4610,6 +4621,7 @@ function ea(graph, activeWorkflow) {
               return wildcardMatch(wildcard, node.type);
           });
           
+          let path = getPathFromNode(node);
 
           if (converter) {
               if (converter[1].asNormalNode && !title.startsWith("#")) return null;
@@ -4617,17 +4629,17 @@ function ea(graph, activeWorkflow) {
               try {
                   const converted = converter[1].formatter(node);
                   if (converted) {
-                      converted.id = node.id;
+                      converted.path = path;
                       let widgets = converted.widgets;
                       widgets.forEach((widget, index) => {
-                          widget.nodeId = node.id;
+                          widget.path = getPathFromNode(node);
                           widget.widgetIndex = index;
                           widget.indent = 0;
                       });
                       widgets = filterWidgets(widgets, node);
                       if(converted.blocks){
                           for(let block of converted.blocks){
-                              widgets.push(...getBlockWidgets(graph, block));
+                              widgets.push(...getBlockWidgets(node.graph, block));
                           }
                       }
                       converted.widgets = widgets;
@@ -4636,7 +4648,7 @@ function ea(graph, activeWorkflow) {
                   }
               } catch (e) {
                   return {
-                      id: node.id,
+                      path: path,
                       title: title,
                       uiWeightSum: 12,
                       widgets: [{
@@ -4669,9 +4681,11 @@ function ea(graph, activeWorkflow) {
               }
           }
           const converted = {
-              id: node.id,
+              path: path,
               title: title,
-              widgets: widgets.map((widget) => ({
+              widgets: widgets.map((widget, index) => ({
+                  path: [],
+                  widgetIndex: index,
                   name: widget.label || widget.name,
                   outputType: widget.type || "string",
                   value: widget.value,
@@ -4702,9 +4716,9 @@ function ea(graph, activeWorkflow) {
   return { 
     widgetablePath: ((i = activeWorkflow[t(2617)].extra) == null ? void 0 : i[t(1162)]) || activeWorkflow[t(648)], 
     widgetableID: activeWorkflow.activeState.id, 
-    nodes: nodes.reduce((c, u) => (c[u.id] = u, c), {}), 
+    nodes: nodes.reduce((c, u) => (c[u.path] = u, c), {}), 
     note: e, 
-    nodeIndexes: nodes.map((c) => c.id), 
+    nodeIndexes: nodes.map((c) => c.path), 
     options: {} 
   };
 }

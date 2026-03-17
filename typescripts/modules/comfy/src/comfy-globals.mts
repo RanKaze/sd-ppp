@@ -1,3 +1,4 @@
+import { WidgetStructure } from "../../../src/types/sdppp";
 
 const app = (window as any).comfyAPI.app.app;
 const api = (window as any).comfyAPI.api.api;
@@ -29,11 +30,39 @@ function* graphIterateAllGroups(graph: any): Generator<any> {
     }
 }
 
-function getRootGraph(graph: any): any {
+function getNodeFromPath(rootGraph: any, path: string): any {
+    const ids = path.split('/');
+    let graph = rootGraph;
+    for(let i = 0; i < ids.length - 1; i++){
+        const id = ids[i];
+        if(!graph.subgraphs.has(id)) throw new Error('Node not found');
+        graph = graph.subgraphs.get(id);
+    } 
+    return graph.getNodeById(Number.parseInt(ids[ids.length - 1]));
+}
+
+function getPathFromNode(node: any): string {
+    let paths = [];
+    let graph = node.graph;
     while (graph != graph.rootGraph) {
+        paths.push(graph.id);
         graph = graph.rootGraph;
     }
-    return graph;
+
+    let path = paths.length == 0 ? node.id.toString() : paths.join("/") + "/" + node.id;
+    return path;
+}
+
+function getPathFromGroup(group: any): string {
+    let paths = [];
+    let graph = group.graph;
+    while (graph != graph.rootGraph) {
+        paths.push(graph.id);
+        graph = graph.rootGraph;
+    }
+
+    let path = paths.length == 0 ? group.id.toString() : paths.join("/") + "/" + group.id;
+    return path;
 }
 
 // 寻找同级节点
@@ -63,5 +92,5 @@ function* iterateSiblingNodes(node: any): Generator<any> {
 }
 
 export {
-    app, api, graphIterateAllNodes, graphIterateAllGroups, findSiblingNodeById, findSiblingNode, iterateSiblingNodes, getRootGraph
+    app, api, graphIterateAllNodes, graphIterateAllGroups, findSiblingNodeById, findSiblingNode, iterateSiblingNodes, getNodeFromPath, getPathFromNode, getPathFromGroup
 }

@@ -1,8 +1,7 @@
-
-export type WidgetTableValue = Record<number, any[]>
+export type WidgetTableValue = Record<string, any[]>
 
 export interface WidgetStructure{
-    nodeId: number;
+    path: string;
     widgetIndex: number;
     name?: string;
     outputType: string;
@@ -13,7 +12,7 @@ export interface WidgetStructure{
 }
 
 export interface WidgetTableStructureNode {
-    id: number;
+    path: string;
     title: string;
     widgets: WidgetStructure[];
     blocks?: WidgetTableStructureBlock[];
@@ -34,16 +33,16 @@ export interface WidgetTableStructureGroup {
     id: number;
     name: string,
     color: string,
-    nodeIDs: number[]
+    nodePaths: string[]
 }
 
 export interface WidgetTableStructure {
     widgetTableID: string,
     widgetTablePath: string,
     widgetTablePersisted: boolean,
-    nodes: Record<number, WidgetTableStructureNode>
+    nodes: Record<string, WidgetTableStructureNode>
     groups: Record<number, WidgetTableStructureGroup>
-    nodeIndexes: number[]
+    nodeIndexes: string[]
     extraOptions: Record<string, any>
 }
 

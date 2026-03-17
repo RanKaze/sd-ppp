@@ -11,7 +11,7 @@ export interface WorkflowCalleeActions {
     }
     setNodeTitle: {
         params: {
-            node_id: number,
+            node_path: string,
             title: string
         }
     }

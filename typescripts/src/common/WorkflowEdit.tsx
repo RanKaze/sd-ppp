@@ -83,7 +83,7 @@ export default function WorkflowEdit({
     const allRenderedFields = useMemo(() => {
         return widgetTableStructure.nodeIndexes.map(nodeID => {
             const fieldInfo = widgetTableStructure.nodes[nodeID]
-            const group = Object.values(widgetTableStructure.groups).find(group => group.nodeIDs.includes(fieldInfo.id))
+            const group = Object.values(widgetTableStructure.groups).find(group => group.nodePaths.includes(fieldInfo.path))
             const groupColor = group?.color || 'rgba(127, 127, 127, .4)'
             if (groupFilter && group?.id !== groupFilter) return null;
 
@@ -91,45 +91,23 @@ export default function WorkflowEdit({
                 fieldInfo.widgets[0].outputType !== 'number' ||
                 !widgetTableStructure.extraOptions?.useSliderForNumberWidget
             )
-            
-            const hasIndent = fieldInfo.widgets.some((w: any) => w.indent !== undefined);
+
             
             let widgetsContent: ReactNode[];
-            if (hasIndent) {
-                widgetsContent = [];
-                const tree = WidgetTreeBuilder.buildTree(fieldInfo.widgets);
-                for (let index = 0; index < tree.nodes.length; index++) {
-                    const item = tree.nodes[index];
-                    // 这是一个 TreeNode
-                    widgetsContent.push(renderWidgetNode(tree.indent, item, fieldInfo, groupColor));
-                }
-                widgetsContent = widgetsContent.filter(Boolean) as ReactNode[];
-            } else {
-                const reduceWidgetRender = (context: {
-                    keepRender: boolean;
-                    result: any[];
-                }, widget: WidgetStructure, widgetIndex: number) => {
-                    if (!context.keepRender) return context;
-
-                    if (widget.outputType === 'error') {
-                        context.result.push(<span className="list-error-label">{widgetTableValue[fieldInfo.id][widgetIndex]}</span>)
-                        return context;
-
-                    } else if (onWidgetRender?.(context, widget, widgetIndex)) {
-                    }
-                    return context;
-                }
-                widgetsContent = fieldInfo.widgets.reduce(reduceWidgetRender, {
-                    keepRender: true,
-                    result: [] as any[]
-                }).result.map((item: ReactNode, index: number) => {
-                    return <WidgetRenderErrorBoundary key={index}>{item}</WidgetRenderErrorBoundary>
-                });
+            
+            widgetsContent = [];
+            const tree = WidgetTreeBuilder.buildTree(fieldInfo.widgets);
+            for (let index = 0; index < tree.nodes.length; index++) {
+                const item = tree.nodes[index];
+                // 这是一个 TreeNode
+                widgetsContent.push(renderWidgetNode(tree.indent, item, fieldInfo, groupColor));
             }
+            widgetsContent = widgetsContent.filter(Boolean) as ReactNode[];
+            
 
             return (
                 <WorkflowEditField 
-                    key={fieldInfo.id}
+                    key={fieldInfo.path}
                     fieldInfo={fieldInfo}
                     groupColor={groupColor}
                     useShortTitle={useShortTitle}

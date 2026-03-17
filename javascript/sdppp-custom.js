@@ -28,8 +28,6 @@
  */
 
 
-
-
 /**
  * 
  * @param {*} node 
@@ -62,6 +60,31 @@ function extractVariables(expr) {
   // 去重
   const variables = [...new Set(matches)];
   return variables;
+}
+
+function getNodeFromExpression(expr, node){
+    const regex = /(([^:\.]+)|(\.\.))/gu;
+    const idRegex = /(?<=\{)\d+(?=\})/g;
+    const matches = expr.match(regex) || [];
+    let targetGraph = node.graph;
+    let n = null;
+    for(let match of matches){
+        if(match == ".."){
+            targetGraph = targetGraph.rootGraph;
+        }else{
+            const idMatch = match.match(idRegex);
+            if(idMatch){
+                let id = Number.parseInt(idMatch[0]);
+                n = targetGraph.getNodeById(id);
+            }else{
+                n = targetGraph.nodes.find(n => n.title == match || n.type == match);
+            }
+            if(n && n.subgraph){
+                targetGraph = n.subgraph;
+            }
+        }
+    }
+    return n;
 }
 
 /**
@@ -112,12 +135,9 @@ function initUpdateSet(node, updateSet) {
 
     updateSet.add(node);
     // 下游节点列表.
-    let beRelayeds = window.sdppp_data.branchBeRelayedMap.get("{"+node.id+"}");
-    if(!beRelayeds) {
-        beRelayeds = window.sdppp_data.branchBeRelayedMap.get(node.title);
-        // 如果没有下游节点,则返回.
-        if(!beRelayeds) return;
-    }
+    let beRelayeds = window.sdppp_data.branchBeRelayedMap.get(node);
+
+    if(!beRelayeds) return;
 
     for (let index = 0; index < beRelayeds.length; index++) {
         const beRelayed = beRelayeds[index];
@@ -127,29 +147,19 @@ function initUpdateSet(node, updateSet) {
 
 function updateRelays(node, updateSet) {
     // 下游节点列表.
-    let beRelayeds = window.sdppp_data.branchBeRelayedMap.get("{"+node.id+"}");
-    if(!beRelayeds) {
-        beRelayeds = window.sdppp_data.branchBeRelayedMap.get(node.title);
-        // 如果没有下游节点,则返回.
-        if(!beRelayeds) return;
-    }
+    let beRelayeds = window.sdppp_data.branchBeRelayedMap.get(node);
+
+    if(!beRelayeds) return;
     
     // 那些没被更新的会在那些节点的更新中顺带着更新.
     for (let index = 0; index < beRelayeds.length; index++) {
         const beRelayed = beRelayeds[index];
         // 找到所有上游节点不存在updateSet中的节点.
-        const relayMarks = window.sdppp_data.branchRelayMap.get(beRelayed);
+        const relayNodes = window.sdppp_data.branchRelayMap.get(beRelayed);
         let flag = true;
 
-        for (let j = 0; j < relayMarks.length; j++) {
-            const relayMark = relayMarks[j];
-            let id = nodeMarkToId(relayMark);
-            let relayNode = null;
-            if (id !== undefined){
-                relayNode = node.graph.getNodeById(id);
-            }else{
-                relayNode = window.sdppp_data.branchTitleMap.get(relayMark);
-            }
+        for (let j = 0; j < relayNodes.length; j++) {
+            const relayNode = relayNodes[j];
             if(updateSet.has(relayNode)){
                 flag = false;
                 break;
@@ -158,22 +168,18 @@ function updateRelays(node, updateSet) {
         
         // 这个节点可以更新了.
         if(flag){
+
             // 如果这个节点已经被更新过了,这就意味着遇到了循环依赖,得跳过..
             if(!updateSet.has(beRelayed)) continue;
             // 正常更新
             updateSet.delete(beRelayed);
+            let relayMarks = extractVariables(beRelayed.properties.relay_expression);
 
             let parameters = new Map();
             for (let j = 0; j < relayMarks.length; j++) {
                 const relayMark = relayMarks[j];
-                let id = nodeMarkToId(relayMark);
-                if (id !== undefined){
-                    const relayNode = node.graph.getNodeById(id);
-                    parameters.set(relayMark, relayNode.widgets[0].value)
-                }else{
-                    const relayNode = window.sdppp_data.branchTitleMap.get(relayMark);
-                    parameters.set(relayMark, relayNode.widgets[0].value)
-                }
+                const relayNode = getNodeFromExpression(relayMark, node);
+                parameters.set(relayMark, relayNode.widgets[0].value)
             }
 
             beRelayed.widgets[0].value = solveExpression(beRelayed.properties.relay_expression, parameters);
@@ -217,30 +223,12 @@ function getNodeTitles(nodeTitles) {
     return nodeTitles.split('/');
 }
 
-function nodeMarkToId(nodeMark){
-    const matches = nodeMark.match(/(?<=\{)\d+(?=\})/g);
-    if (matches){
-        //把match的第一个值转变为id:number
-        let id = Number(matches[0]);
-        return id;
-    }
-    return undefined;
-}
-
 function* getNodes(node, nodeString){
     let nodeMarks = getNodeTitles(nodeString);
     for(let nodeMark of nodeMarks){
-        let id = nodeMarkToId(nodeMark);
-        if(id !== undefined){
-            let subNode = node.graph.getNodeById(id);
-            if(subNode){
-                yield subNode;
-            }
-        }else{
-            let subNode = node.graph.nodes.find(n => n.title === nodeMark || n.type === nodeMark);
-            if(subNode){
-                yield subNode;
-            }
+        let n = getNodeFromExpression(nodeMark, node);
+        if(n){
+            yield n;
         }
     }
 }
@@ -313,7 +301,6 @@ export default function (sdppp, version = 1) {
     if (window.sdppp_data === undefined){
         window.sdppp_data = {};
         window.sdppp_data.LayoutDict = new Map();
-        window.sdppp_data.branchTitleMap = new Map();
         window.sdppp_data.branchRelayMap = new Map();
         window.sdppp_data.branchBeRelayedMap = new Map();
     }
@@ -322,7 +309,6 @@ export default function (sdppp, version = 1) {
         onRefresh: (graph) => {
 
             window.sdppp_data.branchNodes = [];
-            window.sdppp_data.branchTitleMap.clear();
             window.sdppp_data.branchRelayMap.clear();
             window.sdppp_data.branchBeRelayedMap.clear();
 
@@ -345,14 +331,20 @@ export default function (sdppp, version = 1) {
                         node.setProperty('hide', false);
                     }
 
-                    window.sdppp_data.branchTitleMap.set(node.title, node);
                     const expr = node.properties.relay_expression;
-                    const relays = extractVariables(expr);
-                    window.sdppp_data.branchRelayMap.set(node, relays);
-                    
+                    const relayExpreesions = extractVariables(expr);
+                    let relayNodes = [];
+                    // 这个节点依赖的其他节点
+                    for(let relayExpreesion of relayExpreesions){
+                        let relayNode = getNodeFromExpression(relayExpreesion, node);
+                        if(relayNode){
+                            relayNodes.push(relayNode);
+                        }
+                    }
+                    window.sdppp_data.branchRelayMap.set(node, relayNodes);
                     window.sdppp_data.branchNodes.push(node);
                     
-
+                    /*
                     for (let index = 0; index < relays.length; index++) {
                         const relay = relays[index];
                         let table = window.sdppp_data.branchBeRelayedMap.get(relay);
@@ -362,6 +354,7 @@ export default function (sdppp, version = 1) {
                         }
                         table.push(node);
                     }
+                        */
 
                     // 初始化activeNodes
                     let activeNodes = node.properties.active_nodes;
@@ -390,6 +383,19 @@ export default function (sdppp, version = 1) {
                             }
                         }
                     }
+                }
+            }
+
+            for(let relayAndTable of window.sdppp_data.branchRelayMap){
+                let node = relayAndTable[0];
+                let relayNodes = relayAndTable[1];
+                for(let relay of relayNodes){
+                    let table = window.sdppp_data.branchBeRelayedMap.get(relay);
+                    if(!table){
+                        table = [];
+                        window.sdppp_data.branchBeRelayedMap.set(relay, table);
+                    }
+                    table.push(node);
                 }
             }
 
