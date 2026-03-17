@@ -23,7 +23,7 @@ export interface WorkflowCallerActions {
         },
         result: {
             values: {
-                nodeID: number,
+                path: string,
                 widgetIndex: number,
                 value: any
             }[]

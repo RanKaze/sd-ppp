@@ -18,19 +18,19 @@ export function WorkflowCallerSocket(SocketClass: SocketConstructor<Socket>) {
                     const widgetTableKey = `${widgetTableID}_${widgetTablePath}_${widgetTablePersisted}`;
                     const data = getStoredWidgetValue(widgetTableKey);
                     const values: {
-                        nodeID: number,
+                        path: string,
                         widgetIndex: number,
                         value: any,
                         outputType: string
                     }[] = []
                     if (data) {
-                        Object.keys(data || {}).forEach((nodeID: any) => {
-                            Object.keys(data[nodeID] || {}).forEach((widgetIndex: any) => {
+                        Object.keys(data || {}).forEach((path: any) => {
+                            Object.keys(data[path] || {}).forEach((widgetIndex: any) => {
                                 values.push({
-                                    nodeID: nodeID,
+                                    path: path,
                                     widgetIndex: widgetIndex,
-                                    value: data[nodeID][widgetIndex].value,
-                                    outputType: data[nodeID][widgetIndex].outputType
+                                    value: data[path][widgetIndex].value,
+                                    outputType: data[path][widgetIndex].outputType
                                 })
                             })
                         })
@@ -207,7 +207,7 @@ export function WorkflowCallerSocket(SocketClass: SocketConstructor<Socket>) {
 
 
 function getStoredWidgetValue(widgetTableKey: string): {
-    [nodeID: number]: {
+    [path: string]: {
         value: any,
         outputType: string
     }[]

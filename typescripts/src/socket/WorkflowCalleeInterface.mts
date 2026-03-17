@@ -18,7 +18,7 @@ export interface WorkflowCalleeActions {
     setWidgetValue: {
         params: {
             values: {
-                nodeID: number,
+                path: string,
                 widgetIndex: number,
                 value: any
             }[]

@@ -148,8 +148,8 @@ export function WorkflowCalleeSocket(SocketClass: SocketConstructor<Socket>) {
             };
         }
         private setWidgetValue(params: WorkflowCalleeActions['setWidgetValue']['params']) {
-            params.values.forEach(({ nodeID, widgetIndex, value }) => {
-                const node = app.graph.getNodeById(nodeID);
+            params.values.forEach(({ path, widgetIndex, value }) => {
+                const node = getNodeFromPath(app.graph,path);
                 if (!node || value == node.widgets[widgetIndex].value) return;
                 setWidgetValue(node, widgetIndex, value)
             });
